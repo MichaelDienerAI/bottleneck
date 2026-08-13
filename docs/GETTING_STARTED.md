@@ -2,6 +2,8 @@
 
 From an empty folder to your first letter sent. Fifteen steps. Set aside about two hours for the first pass, most of which is you making decisions the system cannot make for you.
 
+Bottleneck v0.2.
+
 Each step tells you what to run, what a good result looks like, and what to do when it does not look like that.
 
 ---

@@ -2,6 +2,8 @@
 
 > The slowest part sets the pace for everything else.
 
+Bottleneck v0.2.
+
 An agentic job-search system built on Theory of Constraints. It does not find more jobs. It finds the small number of jobs where a proof you already own acts directly on a problem the employer already has, and it refuses to spend effort anywhere else.
 
 ## The constraint this system respects
@@ -77,12 +79,12 @@ Read the architecture document first. Section 10 labels which claims are constru
 
 ```
 CLAUDE.md               project instructions Claude Code reads on every session
-.claude/agents/         four subagents: scout, diagnostician, auditor, packet
+.claude/agents/         five subagents: scout, diagnostician, auditor, packet, brief
 .claude/commands/       slash commands that chain them
 profile/proof-ledger.yaml   your sovereign vs speculative proofs, from Isocrates section
 profile/gates.yaml          hard disqualifiers and the compensation floor
 profile/companies.yaml      target boards by archetype, with allocation weights
-src/                    fetchers, gates, case files, ledger
+src/                    fetchers, gates, case files, ledger, brief renderer
 data/cases/             generated: one persistent case file per company
 data/                   generated: candidates, diagnoses, ledger
 packets/                generated: one folder per shipped packet

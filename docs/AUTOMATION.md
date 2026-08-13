@@ -2,6 +2,8 @@
 
 Monday, Wednesday, Friday at 7:05am. Two halves, and the split between them is the point.
 
+Bottleneck v0.2.
+
 ## What runs unattended, and what does not
 
 **Half one is deterministic.** Fetch 27 job boards, apply the fixed rules, rank, rebuild both pages. No model is involved, so there is nothing to fabricate and nothing to audit. This half can run forever without supervision.

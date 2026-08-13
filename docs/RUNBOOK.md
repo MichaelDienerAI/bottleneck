@@ -2,6 +2,8 @@
 
 Sequenced prompts for Claude Code. Run them in order. Each one has an exit condition, and you do not move to the next prompt until the current one clears.
 
+Bottleneck v0.2.
+
 Do not paste these all at once. The order encodes dependencies, and running prompt 6 before prompt 2 produces confident work on unverified inputs, which is the exact failure the system exists to prevent.
 
 ---

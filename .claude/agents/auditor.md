@@ -62,7 +62,7 @@ Append to the artifact. This block is the audit payload defined by `.claude/sche
 
 ```yaml
 audit:
-  dated: YYYY-MM-DD
+  dated: 'YYYY-MM-DD'               # QUOTE IT. see below
   coverage_score: 0.00              # answered / 28, two decimals, 0.00 to 1.00. must equal (28 - len(unanswered)) / 28
   unanswered_question_numbers: []   # filing-standard question numbers, 1-28, unique. returned to the writer
   veto_results:                     # all five required, PASS or REJECT. any false is a REJECT
@@ -81,6 +81,8 @@ audit:
   verdict: PASS | REJECT
   gaps: []                          # anything you could not verify, named rather than smoothed over
 ```
+
+**Quote the date.** `dated: 2026-08-13` is a YAML timestamp and parses to a JavaScript `Date`, not a string. `audit.json` requires a string matching `^\d{4}-\d{2}-\d{2}$`, so an unquoted date fails `validateAudit` on the one field you could not get wrong on the merits. Write `dated: '2026-08-13'`. Nothing in the test suite catches this, because the validators are only ever handed object literals in `test/schema.test.js` and never a file, so the file you write is the only place it can be caught.
 
 **The verdict is exactly two states: `PASS` or `REJECT`.** There is no revise, no conditional pass, no cleared-with-notes. A middle state is where an auditor puts a packet it does not want to defend and does not want to kill, and it converts your severity into a suggestion the writer can route around.
 

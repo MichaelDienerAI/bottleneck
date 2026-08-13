@@ -9,4 +9,6 @@ data/cases/
 # would be diff noise on every scan.
 data/board.html
 data/walkthrough.html
+data/diagnoses/*.html
+data/diagnoses/*.pdf
 data/logs/

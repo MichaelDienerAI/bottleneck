@@ -34,7 +34,7 @@ Run these inside Claude Code, in the repository:
 |---|---|---|
 | `/scan` | Pulls the boards, applies Gate 0, promotes only what the drum can absorb | Start of a cycle, or after the schedule has been off |
 | `/diagnose <company>` | Spends one drum slot. Runs the diagnostician, then the auditor | The main event. Once per company, per week |
-| `/ship <company>` | Builds the packet for a cleared diagnosis, audits it again, adds the ledger row | Only after a SHIP plus a PASS |
+| `/ship <company>` | Builds the packet for a cleared diagnosis, audits it again, renders `brief.html`, adds the ledger row | Only after a SHIP plus a PASS |
 | `/review` | Weekly review from ledger data, not memory | Sunday |
 
 Run these in a terminal:
@@ -46,6 +46,7 @@ Run these in a terminal:
 | `npm run scan` | Half one's fetch on its own, without the agent wrapper |
 | `npm run board` | Rebuilds `data/board.html` |
 | `npm run walk` | Rebuilds `data/walkthrough.html` |
+| `npm run brief <company>` | Renders a diagnosis, or a packet directory, to one self-contained HTML page. Add `--pdf` for a PDF via system Chrome. Reports the clearance state it found and gates nothing |
 | `npm run verify` | Checks every board token in `profile/companies.yaml`. Writes `data/token-verification.json` |
 | `npm test` | Three suites, 114 assertions, no network. Run before you trust anything |
 | `./bin/run.sh` | Runs the whole scheduled job by hand, exactly as launchd runs it |

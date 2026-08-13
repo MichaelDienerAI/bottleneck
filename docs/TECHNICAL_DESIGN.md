@@ -37,7 +37,8 @@ src/
   scan.js                     sourcing CLI
   ledger.js                   drum accounting, tracking, RAND readout
   verify.js                   board token checker
-  gates.test.js               13 assertions, no network
+  renderBrief.js              diagnosis or packet to one self-contained HTML page
+  gates.test.js               68 assertions, no network
 data/                         generated, gitignored
 packets/                      generated, gitignored
 ```

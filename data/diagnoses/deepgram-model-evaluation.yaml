@@ -10,7 +10,7 @@
 company: Deepgram
 role: Senior Software Engineer - Model Evaluation & AI Systems
 url: https://jobs.ashbyhq.com/deepgram/6f3d761e-4873-43af-a9b1-daeb147661f9
-dated: 2026-08-13
+dated: '2026-08-13'
 archetype: conversational_ai
 
 constraint_hypothesis:
@@ -268,3 +268,283 @@ gaps:
     Release cadence. developers.deepgram.com/changelog returns 404 and will not
     paginate, so the gap between releases is unmeasured and method 7 (promise vs
     changelog) could not be run. An RSS feed or a rendered index would settle it.
+
+# ===========================================================================
+# AUDIT — appended 2026-08-13. Nothing above this line was modified.
+# ===========================================================================
+
+audit:
+  dated: '2026-08-13'
+  coverage_score: 0.64
+  unanswered_question_numbers: [2, 4, 5, 16, 17, 23, 24, 26, 27, 28]
+  veto_results:
+    q9_link_behind_claim: true
+    q10_verify_under_60s: true
+    q13_source_beyond_posting: true
+    q19_staged_labeled: true
+    q20_agent_assisted_labeled: true
+  auditor_evidence:
+    - claim: >
+        All five 2026-08-11 Voice Agent issues were filed by one account,
+        dg-edcharbeneau, not by customers. The API record for #761 returns
+        user.login "dg-edcharbeneau", created_at 2026-08-11T15:03:40Z,
+        assignees [], labels bug, author_association NONE. #759, #760, #762 and
+        #763 carry the same author. This settles the diagnosis's own open gap
+        ("one reporter or five") in the weakening direction.
+      inspectable_at: https://api.github.com/repos/deepgram/deepgram-python-sdk/issues/761
+      verify_seconds: 15
+      source_class: backstage
+      strength: 5
+    - claim: >
+        dg-edcharbeneau is a Deepgram employee. The GitHub profile lists company
+        "Deepgram", links deepgram.com, and describes the holder as "Developer
+        Advocate for Deepgram Partners". The defect cluster is therefore internal
+        exploratory testing published in public, not a customer-reported failure.
+      inspectable_at: https://github.com/dg-edcharbeneau
+      verify_seconds: 10
+      source_class: backstage
+      strength: 4
+    - claim: >
+        A public, non-archived, actively-pushed Deepgram benchmark repository
+        exists in the org: deepgram/llm-smart-formatting-benchmark, Python,
+        created 2026-05-12, pushed 2026-08-05, five open issues, not a fork. The
+        diagnosis asserts no such repo exists across the org, and named exactly
+        this artifact as its falsifier.
+      inspectable_at: https://api.github.com/repos/deepgram/llm-smart-formatting-benchmark
+      verify_seconds: 15
+      source_class: backstage
+      strength: 5
+    - claim: >
+        Release cadence on deepgram-python-sdk is measurable without the 404ing
+        developers.deepgram.com changelog: v7.7.0 shipped 2026-08-12, v7.6.0
+        2026-07-22, v7.5.0 2026-07-15, v7.4.0 2026-06-26 — 7 to 21 day gaps.
+        v7.7.0 landed the day after the defect cluster and names Flux TTS
+        streaming controls and Listen v2 redaction, not the think-provider
+        defects, which remain unassigned.
+      inspectable_at: https://github.com/deepgram/deepgram-python-sdk/releases
+      verify_seconds: 20
+      source_class: backstage
+      strength: 5
+    - claim: >
+        Michael's pipeline does not touch the constrained surface. aline-backend
+        package.json declares @deepgram/sdk ^3.9.0 alongside @anthropic-ai/sdk
+        ^0.39.0 and elevenlabs ^1.50.0 as separate dependencies, i.e. Deepgram
+        for speech recognition and Anthropic called directly for the model. There
+        is no Voice Agent Agent API usage and no think-provider configuration, so
+        he is not exercising the BYO think-provider path the constraint sits on.
+      inspectable_at: https://raw.githubusercontent.com/MichaelDienerAI/aline-backend/main/package.json
+      verify_seconds: 10
+      source_class: backstage
+      strength: 5
+  verdict: REJECT
+  gaps:
+    - >
+      REJECT basis, stated plainly: coverage is 0.64 and all five vetoes hold, so
+      the mechanical PASS conditions are met. The packet fails the three tests.
+      Three load-bearing claims are struck, including the one the diagnostician
+      identified as "what let the hypothesis survive," and the diagnostician's own
+      stated falsifier is satisfied in the public record. Certifying that would put
+      an overstated claim in front of a hiring manager, which costs more than a
+      released drum slot. Rewrites are in the strikes block; the constraint is
+      probably rebuildable on a corrected predicate and can retake a slot.
+    - >
+      Whether dg-edcharbeneau filed the cluster on his own initiative or on behalf
+      of an external partner. His title is "Developer Advocate for Deepgram
+      Partners" and author_association on the SDK repo is NONE, so he is staff but
+      not a collaborator on that repo. Either way "customer-reported" is
+      unsupported. A maintainer reply naming an internal ticket, or a partner named
+      in the issue body, would settle which it is.
+    - >
+      Whether deepgram/llm-smart-formatting-benchmark contains a reproducible
+      methodology or is a scratch directory. I read only the API metadata, not the
+      file tree. A read of its /contents and README would settle whether the
+      diagnosis's absence claim can be narrowed or must be abandoned outright.
+    - >
+      Whether v7.7.0 fixed any of #759 through #763. The release notes name Flux
+      TTS streaming controls, Listen v2 redaction, send_interrupt() and
+      send_configure(), none of which are the think-provider defects, but I did not
+      diff the release commit range against the five issues. A commit range read
+      would settle it and would materially change the constraint's strength either
+      way.
+    - >
+      The live-product measurement on Deepgram's Voice Agent is still unrun. The
+      diagnostician flagged it; I did not run it either, so the highest-value
+      record in the file remains missing at audit time.
+    - >
+      deformation_test_bank in profile/proof-ledger.yaml is still listed under
+      `sovereign` with inspect_at TODO_PUBLIC_URL. Confirmed unfixed on 2026-08-13.
+      By the ledger's own definition it is not sovereign, and the ledger is
+      authoritative, so the label is a live defect in the ledger and not merely a
+      note in this diagnosis.
+    - >
+      The evidence rows above would not validate against .claude/schemas/evidence.json.
+      `strength` is written as words ("sovereign", "circumstantial") where the schema
+      requires an integer 1 to 5, and rows 2 and 3 put prose and two URLs into
+      `inspectable_at`, which carries format: uri. Structural, not a claim defect,
+      but it means these rows have never been through the validator they are shaped for.
+    - >
+      Independent recount of the 79-req board. Still unverified. I did not attempt
+      it, so the departmental counts remain as weak as the diagnostician left them.
+
+strikes:
+  claims_tested: 20
+  claims_struck: 9
+  struck:
+    - claim: >
+        binding_part: "Four customer-reported defects on that single surface opened
+        on one day, 2026-08-11 ... The first automated check on that surface is a
+        customer filing an issue."
+      reason: >
+        Promise versus reality, and prove the claim. All five issues were filed by
+        dg-edcharbeneau, whose GitHub profile lists company Deepgram and the title
+        Developer Advocate for Deepgram Partners. No customer filed anything. The
+        second sentence inverts what the record shows: a Deepgram employee found
+        these by hand before any customer did, which means a manual internal check
+        is the first gate, not a customer. The diagnosis flagged the reporter
+        question as an open gap and shipped a verdict that depends on the answer.
+      rewrite: >
+        The Voice Agent third-party think-provider path has no automated
+        pre-release behavioral gate. On 2026-08-11 a Deepgram developer advocate
+        filed five public reports against that surface in one day — #759 a silent
+        turn drop on aws_bedrock reasoning models, #760 a first-turn Bedrock
+        rejection triggered by agent.greeting, #761 a generated type hint naming
+        two model IDs absent from the default region, #762 two of five accepted
+        reasoning_mode values failing at request time, #763 groq documented as BYO
+        but working with no credentials. None carried an assignee two days later,
+        and v7.7.0 shipped on 2026-08-12 without addressing them. The check on
+        this surface is one person exploring it by hand.
+    - claim: >
+        output_capped: "Voice Agent releases ... that reach GA without a
+        customer-reported behavioral defect ... Currently 4 in one day on one
+        provider (aws_bedrock), 5 total that day."
+      reason: >
+        Prove the claim. The countable metric is wrong in kind as well as in
+        attribution. Of the five, #762 and #763 carry the label `documentation` and
+        #761 is a generated-type defect the reporter himself routes upstream to the
+        Fern generator. Two are behavioral service-side defects. Counting five
+        documentation-and-codegen tickets as behavioral defects inflates the number
+        a hiring manager would check first.
+      rewrite: >
+        Countable as: unassigned behavioral defects per release on the
+        think-provider surface. Currently two, #759 and #760, both on aws_bedrock,
+        both open and unassigned across the v7.7.0 release boundary. Three further
+        reports the same day are documentation or generated-type defects and are
+        counted separately.
+    - claim: >
+        Evidence row 4: "No public Deepgram evaluation harness,
+        benchmark-methodology repo, or reproducible WER/latency regression suite
+        exists across the ~112-115 repos in the GitHub org ... finding it is what
+        let the hypothesis survive."
+      reason: >
+        Prove the claim. deepgram/llm-smart-formatting-benchmark exists in the org:
+        Python, created 2026-05-12, pushed 2026-08-05, five open issues, not
+        archived, not a fork. An org-repo listing sorted by update time was the
+        wrong instrument for an absence claim about 112 repositories; a name search
+        against the API returns the counterexample in fifteen seconds. An absence
+        claim is the strongest thing in this file and it was the least tested.
+      rewrite: >
+        No public Deepgram repository covers Voice Agent think-provider behavior.
+        The one public benchmark repo in the org,
+        deepgram/llm-smart-formatting-benchmark (Python, pushed 2026-08-05),
+        benchmarks LLM smart formatting, a post-transcription feature, and does not
+        touch the BYO think-provider path. Whether it carries a reproducible
+        methodology is unread and must be read before this row is used.
+    - claim: 'disconfirming.result PRIMARY: "Hypothesis SURVIVED," and confidence: medium.'
+      reason: >
+        Prove the claim. The diagnostician wrote the falsifier himself — "if
+        Deepgram already ships a public, actively-maintained eval/benchmark
+        harness, then evaluation is already mechanized ... and P3 applies" — and an
+        actively-pushed public benchmark repo exists. The hypothesis cannot be
+        recorded as having survived a query whose stated killing condition is
+        present in the record. Combined with the loss of the customer-reported
+        predicate, medium confidence is not supportable.
+      rewrite: >
+        PRIMARY: partially killed. A public, actively-pushed Deepgram benchmark
+        repo exists (llm-smart-formatting-benchmark), so the org does mechanize
+        some evaluation. The hypothesis survives only narrowed to the Voice Agent
+        think-provider surface, where no public harness and no automated gate is
+        visible. Confidence low, not medium, until either the live-product
+        measurement runs or a maintainer reply on #759 names the layer.
+    - claim: >
+        proof_match mechanism: "he is already load-testing the exact surface the
+        constraint sits on."
+      reason: >
+        Promise versus reality, and what do we control. aline-backend's
+        package.json declares @deepgram/sdk ^3.9.0 next to @anthropic-ai/sdk
+        ^0.39.0 and elevenlabs ^1.50.0 as separate dependencies. Michael assembles
+        the pipeline himself: Deepgram for speech recognition, Anthropic called
+        directly for the model, ElevenLabs for synthesis. That is the architecture
+        Voice Agent's think-provider path replaces. He has never exercised the
+        constrained surface, and his own repository is the record that proves it.
+      rewrite: >
+        Michael is a paying Deepgram speech-recognition customer: aline-backend
+        declares @deepgram/sdk ^3.9.0 in package.json. He runs a hand-assembled
+        multi-vendor pipeline — Deepgram for recognition, Anthropic for the model,
+        ElevenLabs for synthesis — not Deepgram's Voice Agent runtime, and has not
+        exercised the think-provider path. What transfers is the failure mode: a
+        silently dropped turn with no error is the class his harness codes for. The
+        surface itself would be new to him.
+    - claim: >
+        proof_match mechanism: "Michael has already built the pass/fail methodology
+        layer the posting asks for ... and it is publicly readable in the
+        aline-backend repo."
+      reason: >
+        Promise versus reality. The repo's own documentation describes test-mra.js
+        as a standalone harness for the Calibration Layer services — the seventeen
+        modules the ledger requires be stated as written and test-exercised but not
+        wired into the deployed path. So the lead sovereign proof is a harness whose
+        subject under test is the staged component. The diagnosis labels the
+        Calibration Layer correctly in known_gaps_respected and then omits the
+        connection here, which is exactly the blur a hiring manager finds on their
+        own.
+      rewrite: >
+        test-mra.js is a standalone behavioral harness with objective coding for
+        drift, sycophancy and fabricated continuity, publicly readable at
+        https://github.com/MichaelDienerAI/aline-backend/blob/main/test-mra.js. It
+        exercises the Calibration Layer, which is written and test-exercised and not
+        wired into the deployed path. It is the methodology, run by hand, on a
+        staged subject. It is not a CI gate and has never run against a vendor API.
+    - claim: >
+        Evidence rows 2 and 3 inspectable_at fields: "URL (410 Gone) vs URL
+        (renders)" and "search index cache of URL ; source page itself now dark."
+      reason: >
+        Prove the claim, and P2. Neither field is an openable address. Row 2 packs
+        two URLs and prose into one field, and row 3 points at a cache with no
+        cache URL while conceding the source is dark, so a stranger cannot reach it
+        in sixty seconds or at all. Row 3 is the sole source of the QA Engineering
+        Manager title, so the decision_maker title degrades with it.
+      rewrite: >
+        Split row 2 into two rows, each with one absolute URL. For row 3, supply a
+        web.archive.org snapshot URL for the withdrawn req or mark it
+        INSUFFICIENT_EVIDENCE with the missing record named as "an archived copy of
+        Ashby posting 1111c5de," and demote decision_maker.title to inference from
+        an unreachable record until such a snapshot exists.
+    - claim: >
+        proof_match asset "test_harness (Adversarial evaluation harness,
+        test-mra.js)" with no URL anywhere in the file.
+      reason: >
+        Prove the claim. The file names the strongest artifact and never links it.
+        A stranger must search for the repo, guess the filename and browse the
+        tree; the ledger's own inspect_at is a bare repo root, which evidence.json
+        explicitly rules out for repo evidence. Verifying it took forty seconds
+        instead of ten because no link existed.
+      rewrite: >
+        asset: test_harness — https://github.com/MichaelDienerAI/aline-backend/blob/main/test-mra.js
+        (file confirmed present in the repository root, 2026-08-13).
+    - claim: >
+        Gap 7: "Release cadence. developers.deepgram.com/changelog returns 404 ...
+        so the gap between releases is unmeasured and method 7 could not be run."
+      reason: >
+        Prove the claim. P5 requires naming a record that is actually missing. This
+        one is not missing: the releases page of the same repository the diagnosis
+        rests on gives dated tags. Recording an available record as unmeasured is a
+        false gap, and it cost the diagnosis its strongest timing fact.
+      rewrite: >
+        Release cadence measured on 2026-08-13 from
+        https://github.com/deepgram/deepgram-python-sdk/releases: v7.7.0
+        2026-08-12, v7.6.0 2026-07-22, v7.5.0 2026-07-15, v7.4.0 2026-06-26, gaps
+        of 7 to 21 days. v7.7.0 shipped one day after the defect cluster and names
+        Flux TTS streaming controls and Listen v2 redaction, not the
+        think-provider defects, which remain unassigned across a release boundary.
+        Method 7 can be run. The service-side changelog remains 404 and that
+        narrower gap stands.

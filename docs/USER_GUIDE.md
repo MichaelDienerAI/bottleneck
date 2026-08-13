@@ -2,6 +2,8 @@
 
 A guide to the thing you built. Read the first two pages and you will understand the whole system. Read the rest when you need it.
 
+Bottleneck v0.2.
+
 ---
 
 ## 1. What this does

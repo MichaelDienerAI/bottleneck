@@ -41,13 +41,19 @@ Write `data/diagnoses/<company>-<slug>.yaml`.
 
 Five keys are owned by `.claude/schemas/evidence.json` and checked by `validateEvidence` in `src/utils/schemaValidator.js`: `dated`, `acquittal`, `missing_record`, `evidence`, `disconfirming`. Lift those five verbatim and they are the evidence payload. That block takes no additional properties, so nothing diagnosis-local goes inside it and no field gets renamed to read better. Read the schema before you write the file; do not reconstruct it from this page if the two ever disagree.
 
+Two ways that block gets written wrong, both of which have already happened and neither of which any test catches, because the validators are only ever handed object literals in `test/schema.test.js` and never a file:
+
+**Quote every date.** `dated: 2026-08-13` is a YAML timestamp, and it parses to a JavaScript `Date`, not a string. The schema requires a string matching `^\d{4}-\d{2}-\d{2}$`, so an unquoted date fails `validateEvidence` on a field you filled in correctly. Write `dated: '2026-08-13'`. The same rule applies to any date you add anywhere in the file.
+
+**`acquittal` is required on every run, including a SHIP.** It is not a failure-only field, and omitting it is not the same as `EVIDENCE_SUFFICIENT`. A diagnosis with no `acquittal` fails `validateEvidence` and fails entry gate 3 in `.claude/agents/packet.md`, which reads the key directly, so the packet stops on a field you simply did not type. Write `EVIDENCE_SUFFICIENT` when at least one element survived the evidence test, `INSUFFICIENT_EVIDENCE` plus `missing_record` when none did.
+
 ```yaml
 company:
 role:
 url:
 archetype:
 
-dated: YYYY-MM-DD        # the date the evidence was gathered
+dated: 'YYYY-MM-DD'      # the date the evidence was gathered. QUOTE IT, always
 
 constraint_hypothesis:
   weakest_link:          # the formula sentence, written out: "[COMPANY] produces no more [OUTPUT] than its slowest [PART] allows."
@@ -55,7 +61,7 @@ constraint_hypothesis:
   output_capped:         # what it caps, stated as something countable
   confidence: high|medium|low
 
-acquittal: EVIDENCE_SUFFICIENT | INSUFFICIENT_EVIDENCE
+acquittal: EVIDENCE_SUFFICIENT | INSUFFICIENT_EVIDENCE   # REQUIRED on every run, both verdicts
 missing_record:          # required when acquittal is INSUFFICIENT_EVIDENCE. the record that would settle it. omit otherwise
 
 evidence:
