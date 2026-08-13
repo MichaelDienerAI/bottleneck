@@ -200,16 +200,25 @@ Each subagent is a markdown file with YAML front matter naming its tools and mod
 Required output fields, and the packet stage refuses to run without them:
 
 ```yaml
-constraint_hypothesis: { binding_part, output_capped, confidence }
+dated: YYYY-MM-DD                   # the date the evidence was gathered
+constraint_hypothesis: { weakest_link, binding_part, output_capped, confidence }
+acquittal: EVIDENCE_SUFFICIENT | INSUFFICIENT_EVIDENCE
+missing_record:                     # required under INSUFFICIENT_EVIDENCE. omit otherwise
 evidence:
-  - { claim, inspectable_at, verify_seconds, source_class, strength }
+  - { claim, inspectable_at, verify_seconds, source_class, strength, specificity_leak }
 disconfirming: { query_issued, result, survived }
 proof_match: { asset, tier, acts_on_constraint, mechanism }
 decision_maker: { name, title, reachable_via, source }
 verdict: SHIP | PARK | REJECT
 ```
 
-`source_class` is `backstage` or `frontstage`. A posting is front stage, meaning the company wrote it to be read, so no evidence row may cite it alone. The one exception is a specificity leak, which matters precisely because it marks where front-stage control failed.
+Five of those keys belong to `.claude/schemas/evidence.json` rather than to this file: `dated`, `acquittal`, `missing_record`, `evidence`, and `disconfirming`. Lifted together they are the evidence payload `validateEvidence` checks, and that object is closed with `additionalProperties: false`, so nothing diagnosis-local goes inside it. The rest — the hypothesis, the proof match, the decision maker, the verdict — are the diagnosis wrapper and are not schema-checked.
+
+`strength` is an integer from 1 to 5: 5 a sovereign backstage trace a stranger can reproduce, 3 circumstantial, 1 asserted with a source that only repeats the assertion. `inspectable_at` is an absolute URL, since a bare repo path is not something a stranger can open. `specificity_leak` is optional and appears only on a frontstage row admissible as a leak.
+
+`source_class` is `backstage` or `frontstage`. A posting is front stage, meaning the company wrote it to be read, so no evidence row may cite it alone. The one exception is a specificity leak, which matters precisely because it marks where front-stage control failed. R-BACKSTAGE enforces it: an `EVIDENCE_SUFFICIENT` payload needs at least one backstage row, or one frontstage row explicitly labeled `specificity_leak`.
+
+`acquittal` is the two-state finding on whether the constraint could be established at all. `INSUFFICIENT_EVIDENCE` is an acquittal, not a finding that the company has no constraint, and R-ACQUITTAL requires `missing_record` to name the record that would settle it. That is P5 in code: a missing record is itself a finding.
 
 `disconfirming.query_issued` is required and must have been issued after the hypothesis formed. The field exists because a model stops searching the moment its prior matches, exactly as a public defender stops an interview once the case looks typical. Scoring the seeking rather than the finding is what makes the requirement enforceable.
 
@@ -217,18 +226,28 @@ verdict: SHIP | PARK | REJECT
 
 ```yaml
 audit:
-  coverage: 0.00
-  threshold: 0.50
-  unanswered: []
-  mandatory_failed: []        # questions 9,10,13,19,20. any entry fails outright
-  posting_only_rows: 0        # must be zero
-  claims_struck:
-  verdict: CLEARED | REVISE | KILL
+  dated: YYYY-MM-DD
+  coverage_score: 0.00              # answered / 28, a fraction between 0 and 1
+  unanswered_question_numbers: []   # filing-standard numbers, 1-28, unique
+  veto_results:                     # five checkpoints, each with its own veto
+    q9_link_behind_claim: true
+    q10_verify_under_60s: true
+    q13_source_beyond_posting: true
+    q19_staged_labeled: true
+    q20_agent_assisted_labeled: true
+  auditor_evidence:                 # same row shape as an evidence payload
+    - { claim, inspectable_at, verify_seconds, source_class, strength }
+  verdict: PASS | REJECT
+  gaps: []                          # optional. what could not be verified
 ```
+
+`.claude/schemas/audit.json` closes this object with `additionalProperties: false`, so those seven keys are the whole contract and a renamed field is a validation failure rather than a stylistic choice. The coverage threshold lives in `src/utils/schemaValidator.js` as `COVERAGE_THRESHOLD`, not in the payload, because a packet that carries its own passing threshold is grading itself.
+
+Four rules sit outside what JSON Schema can express and are enforced in `validateAudit`: PASS requires all five vetoes true, PASS requires `coverage_score` at or above the threshold, `coverage_score` must equal `(28 - unanswered.length) / 28` within rounding, and PASS requires a backstage row in `auditor_evidence`. Each is listed by id in the schema's `x-rules` block, so the schema never claims to be the whole gate.
 
 The Auditor must cite at least one evidence source the Diagnostician did not. That single rule is the cheapest available fix for circular verification. Two instances of the same model reading the same evidence share the same blind spots, and confidence rises without information. One independent source breaks the circle without adding a component.
 
-**Packet.** Writes `packets/{company}-{date}/` containing `brief.md`, `outreach.md`, `resume-delta.md`, and `ledger-row.json`. Refuses to run unless verdict is SHIP and audit is CLEARED.
+**Packet.** Writes `packets/{company}-{date}/` containing `brief.md`, `outreach.md`, `resume-delta.md`, and `ledger-row.json`. Refuses to run unless the diagnosis verdict is SHIP and the audit verdict is PASS.
 
 ---
 
@@ -241,7 +260,7 @@ STATE        ledger rows + case files
 BUDGET       five slots per week, ten-item buffer
 STEP         hypothesis → targeted query → disconfirming query → audit → write
 GATES        Gate 0, evidence schema, coverage threshold, mandatory questions
-STOP         SHIP, PARK, REJECT, INSUFFICIENT_EVIDENCE, KILL, DEAD, DRUM_FULL
+STOP         SHIP, PARK, REJECT (diagnosis or audit), INSUFFICIENT_EVIDENCE, DEAD, DRUM_FULL
 ESCALATE     low archetype_match_confidence routes to manual review
 ```
 
@@ -251,9 +270,17 @@ The loop never lets the producing agent certify its own completion. SHIP is a ch
 
 ## 9. Testing
 
-`npm test` runs `gates.test.js`. Thirteen assertions, no network, covering title family matching, seniority rejection, each disqualifier group, location logic, published and free-text compensation, flag-not-fail behavior on missing data, and weight-based ranking.
+`npm test` runs three suites in order, 114 assertions, no network and no model in any of them.
 
-Gate 0 is the only component testable without a network or a model, and it decides everything the bottleneck resource ever sees, so it carries the tests.
+| Suite | Assertions | Covers |
+|---|---|---|
+| `src/gates.test.js` | 68 | Title family matching, seniority rejection, each disqualifier group, location logic, published and free-text compensation, flag-not-fail behavior on missing data, blocking-versus-informational flags, per-company caps, and weight-based ranking |
+| `test/schema.test.js` | 41 | Both payload schemas and the four rules JSON Schema cannot express: R-BACKSTAGE, R-ACQUITTAL, R-VETO, R-THRESHOLD, R-COVERAGE-CONSISTENT, R-AUDITOR-BACKSTAGE |
+| `test/automation.test.js` | 5 | `bin/run.sh` orchestration against a fixture repo under a temporary `HOME`: a clean run, a full drum, a missing CLI, a missing brief agent, and a corrupted or non-integer ledger |
+
+Gate 0, the schemas, and the runner are the three components testable without a network or a model. Gate 0 decides everything the bottleneck resource ever sees. The schemas decide what a subagent is allowed to hand back. The runner decides what happens at 7am when something has already gone wrong. Everything else needs a human reading it.
+
+`test/automation.test.js` copies the real `bin/run.sh` and `src/ledger.js` into the fixture rather than paraphrasing them, drives half two through `CLAUDE_BIN`, and never invokes the real CLI or the network.
 
 Case-file lifecycle is exercised manually: create, park, verify cooling, force a stale visit, confirm DEAD. Converting that to assertions is the next test to write.
 

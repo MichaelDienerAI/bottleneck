@@ -57,7 +57,7 @@ That single chain determines every design decision below. When a decision looks 
                                                   AUDITOR
                                                   (agent)
                                                       │
-                                          CLEARED     │     KILL
+                                             PASS     │     REJECT
                                                       ▼      └──► slot released
                                                    PACKET
                                                    (agent)
@@ -76,7 +76,7 @@ That single chain determines every design decision below. When a decision looks 
 
 **Auditor.** Scores the artifact as a percentage of a fixed twenty-eight-question filing standard, then attacks every remaining claim. It is measured on claims killed, not packets approved.
 
-**Packet.** Writes the brief, the outreach note, the resume delta, and the ledger row. Runs only after the Auditor clears.
+**Packet.** Writes the brief, the outreach note, the resume delta, and the ledger row. Runs only after the Auditor returns PASS.
 
 **Ledger.** Tracks what shipped, what replied, and how far each conversation reached. It also reports open slots, which is how the whole pipeline learns when to stop.
 
@@ -104,9 +104,9 @@ The system stops in named ways. "Keep looking" is not a stopping rule, because a
 |---|---|---|
 | SHIP | Constraint named, proof matches, decision-maker identified | Packet gets built |
 | PARK | Constraint legible, no proof acts on it | Case file gets a revisit date and a trigger |
-| REJECT | Hypothesis failed the evidence test | Hypothesis recorded as dead, never re-run |
+| REJECT (diagnosis) | Hypothesis failed the evidence test | Hypothesis recorded as dead, never re-run |
 | INSUFFICIENT_EVIDENCE | Cannot establish a constraint through admissible process | Acquittal, not a claim the company has no constraint |
-| KILL | Audit found the packet unfounded | Slot returns to the pool |
+| REJECT (audit) | Audit found the packet unfounded | Slot returns to the pool |
 | DEAD | Two visits produced no new evidence | Company closed until a public change |
 | DRUM_FULL | Weekly capacity consumed | Sourcing suspends |
 

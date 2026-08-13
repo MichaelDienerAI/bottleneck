@@ -1,0 +1,113 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "audit.json",
+  "title": "Audit result",
+  "description": "What the auditor returns for one artifact. Coverage is scored against the twenty-eight questions in .claude/references/filing-standard.md. The five mandatory questions each carry their own veto, so they are recorded as five independent booleans rather than folded into the coverage number.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "dated",
+    "coverage_score",
+    "unanswered_question_numbers",
+    "veto_results",
+    "auditor_evidence",
+    "verdict"
+  ],
+  "properties": {
+    "dated": {
+      "type": "string",
+      "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+    },
+    "coverage_score": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 1,
+      "description": "answered / 28, as a fraction between 0 and 1. Matches the coverage field in .claude/agents/auditor.md, which writes it to two decimals."
+    },
+    "unanswered_question_numbers": {
+      "type": "array",
+      "uniqueItems": true,
+      "description": "The filing-standard question numbers the artifact did not answer, returned to the writer. A silent rejection teaches nothing.",
+      "items": {
+        "type": "integer",
+        "minimum": 1,
+        "maximum": 28
+      }
+    },
+    "veto_results": {
+      "$ref": "#/$defs/veto_results"
+    },
+    "auditor_evidence": {
+      "type": "array",
+      "description": "The evidence the auditor itself inspected. Same row shape as an evidence payload, so an audit is auditable on the same terms as the thing it audits.",
+      "items": { "$ref": "evidence.json#/$defs/evidence_item" }
+    },
+    "verdict": {
+      "enum": ["PASS", "REJECT"],
+      "description": "REJECT releases the drum slot back to the pool. A slot spent discovering a packet was unfounded is cheaper than a packet that does not survive scrutiny."
+    },
+    "gaps": {
+      "type": "array",
+      "description": "Anything that could not be verified, named rather than smoothed over.",
+      "items": { "type": "string", "minLength": 1 }
+    }
+  },
+  "$defs": {
+    "veto_results": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "The five mandatory filing-standard questions. Each is a checkpoint with its own veto. Coverage is an aggregate, and an aggregate that can outvote a checkpoint turns the obstacle course back into an assembly line with extra steps.",
+      "required": [
+        "q9_link_behind_claim",
+        "q10_verify_under_60s",
+        "q13_source_beyond_posting",
+        "q19_staged_labeled",
+        "q20_agent_assisted_labeled"
+      ],
+      "properties": {
+        "q9_link_behind_claim": {
+          "type": "boolean",
+          "description": "Q9. Is there a link behind the constraint claim?"
+        },
+        "q10_verify_under_60s": {
+          "type": "boolean",
+          "description": "Q10. Is the verify time under sixty seconds?"
+        },
+        "q13_source_beyond_posting": {
+          "type": "boolean",
+          "description": "Q13. Is the hypothesis sourced from something other than the posting alone?"
+        },
+        "q19_staged_labeled": {
+          "type": "boolean",
+          "description": "Q19. Is anything staged rather than shipped labeled as staged? The Calibration Layer is the known case."
+        },
+        "q20_agent_assisted_labeled": {
+          "type": "boolean",
+          "description": "Q20. Is agent-assisted work labeled as agent-assisted?"
+        }
+      }
+    }
+  },
+  "x-rules": [
+    {
+      "id": "R-VETO",
+      "description": "PASS requires all five vetoes true. No amount of coverage buys past a failed checkpoint.",
+      "implemented_by": "src/utils/schemaValidator.js validateAudit"
+    },
+    {
+      "id": "R-THRESHOLD",
+      "description": "PASS requires coverage_score at or above the current filing-standard threshold of 0.50. The threshold is a number you turn; raise it by five points every ten packets until reply rate stops improving.",
+      "implemented_by": "src/utils/schemaValidator.js validateAudit"
+    },
+    {
+      "id": "R-COVERAGE-CONSISTENT",
+      "description": "coverage_score must equal (28 - unanswered_question_numbers.length) / 28, within two-decimal rounding. Coverage is countable, so a score that does not match its own unanswered list is an unscored opinion.",
+      "implemented_by": "src/utils/schemaValidator.js validateAudit"
+    },
+    {
+      "id": "R-AUDITOR-BACKSTAGE",
+      "description": "A PASS verdict requires at least one backstage row in auditor_evidence, or a labeled specificity leak. This is auditor.md's posting_only_rows: 0, enforced in code.",
+      "implemented_by": "src/utils/schemaValidator.js validateAudit"
+    }
+  ]
+}

@@ -1,0 +1,104 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "evidence.json",
+  "title": "Evidence payload",
+  "description": "The evidence block a subagent returns for one company. Enforces P2 (only evidence a stranger could inspect without asking) and P5 (when a record is missing, name the missing record). Structural keywords here are checked by src/utils/schemaValidator.js; the two cross-cutting rules that JSON Schema cannot express are listed in x-rules and implemented in the same file.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["dated", "acquittal", "evidence", "disconfirming"],
+  "properties": {
+    "dated": {
+      "type": "string",
+      "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+      "description": "The date the evidence was gathered. Every generated artifact carries a date."
+    },
+    "acquittal": {
+      "enum": ["EVIDENCE_SUFFICIENT", "INSUFFICIENT_EVIDENCE"],
+      "description": "INSUFFICIENT_EVIDENCE is an acquittal, not a finding of innocence. A company can have a bottleneck that cannot be established through admissible process. Saying so is a finding under P5, and requires missing_record."
+    },
+    "missing_record": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Required when acquittal is INSUFFICIENT_EVIDENCE. The name of the record that would settle the question. P5."
+    },
+    "evidence": {
+      "type": "array",
+      "description": "One row per claim. May be empty only under an INSUFFICIENT_EVIDENCE acquittal.",
+      "items": { "$ref": "#/$defs/evidence_item" }
+    },
+    "disconfirming": {
+      "$ref": "#/$defs/disconfirming"
+    }
+  },
+  "$defs": {
+    "evidence_item": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["claim", "inspectable_at", "verify_seconds", "source_class", "strength"],
+      "properties": {
+        "claim": {
+          "type": "string",
+          "minLength": 1,
+          "description": "One assertion. Not a summary of several."
+        },
+        "inspectable_at": {
+          "type": "string",
+          "format": "uri",
+          "description": "An absolute URL a stranger can open without contacting anyone. A bare repo path is not inspectable by a stranger, so repo evidence must be written as a full blob or commit URL."
+        },
+        "verify_seconds": {
+          "type": "number",
+          "minimum": 0,
+          "description": "How long verification takes. The auditor passes anything verifiable in ten seconds; filing-standard question 10 vetoes anything over sixty. The threshold is the auditor's judgment, not this schema's, so only the measurement is required here."
+        },
+        "source_class": {
+          "enum": ["backstage", "frontstage"],
+          "description": "Frontstage is what the company manages to appear to be: the posting, the marketing site, the careers page. Backstage traces are involuntary: pull request age, issue age weighted by demand, release gaps, refusal clustering."
+        },
+        "strength": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 5,
+          "description": "5 a sovereign backstage trace a stranger can reproduce; 3 circumstantial, consistent with the claim but also with others; 1 asserted with a source that only repeats the assertion."
+        },
+        "specificity_leak": {
+          "type": "boolean",
+          "description": "Marks a frontstage row that is admissible anyway because it is where frontstage control failed: a detail too specific to be presentation. Must be labeled, per .claude/agents/diagnostician.md. This is the one exception to R-BACKSTAGE."
+        }
+      }
+    },
+    "disconfirming": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["query_issued", "result", "survived"],
+      "properties": {
+        "query_issued": {
+          "type": "string",
+          "minLength": 1,
+          "description": "The query issued to kill the hypothesis, formed after the hypothesis. Scored on disconfirming evidence sought, not found."
+        },
+        "result": {
+          "type": "string",
+          "minLength": 1,
+          "description": "What came back, including the word nothing. A logged query with no logged result is not a logged attempt."
+        },
+        "survived": {
+          "type": "boolean",
+          "description": "Whether the hypothesis survived the query."
+        }
+      }
+    }
+  },
+  "x-rules": [
+    {
+      "id": "R-BACKSTAGE",
+      "description": "A payload claiming EVIDENCE_SUFFICIENT must carry at least one backstage row, or one frontstage row explicitly labeled specificity_leak. An evidence set that is entirely frontstage is the company's own account of itself and cannot establish a constraint.",
+      "implemented_by": "src/utils/schemaValidator.js validateEvidence"
+    },
+    {
+      "id": "R-ACQUITTAL",
+      "description": "EVIDENCE_SUFFICIENT requires at least one evidence row. INSUFFICIENT_EVIDENCE requires missing_record naming the record that would settle it. P5.",
+      "implemented_by": "src/utils/schemaValidator.js validateEvidence"
+    }
+  ]
+}

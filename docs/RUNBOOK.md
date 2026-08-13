@@ -14,10 +14,10 @@ Download the repository files and unzip them into a folder. Open that folder in 
 cd bottleneck
 node --version        # must be 18 or higher
 npm install
-npm test              # expect 13 passing
+npm test              # expect 114 passing across 3 suites: 68 gates, 41 schema, 5 automation
 ```
 
-If `npm test` fails, stop and fix that before opening Claude Code. Gate 0 decides everything the bottleneck resource ever sees.
+If `npm test` fails, stop and fix that before opening Claude Code. Gate 0 decides everything the bottleneck resource ever sees, the schemas decide what a subagent may hand back, and the automation suite decides what happens at 7am when something has already gone wrong.
 
 ---
 
@@ -25,7 +25,7 @@ If `npm test` fails, stop and fix that before opening Claude Code. Gate 0 decide
 
 > Read CLAUDE.md, then list every subagent you can see in .claude/agents and every slash command in .claude/commands. For each one, tell me the model it declares and one sentence on what it does. Then tell me which files in .claude/references you would load before a diagnosis. Do not do any other work.
 
-**Exit condition.** It names four agents, four commands, and two references. If it cannot see them, the front matter format is wrong for your Claude Code version, and you fix that now rather than discovering it at packet time.
+**Exit condition.** It names five agents, four commands, and two references. The fifth agent is `brief`, the headless gatherer the schedule runs unattended; the other four are `scout`, `diagnostician`, `auditor`, and `packet`. If it cannot see them, the front matter format is wrong for your Claude Code version, and you fix that now rather than discovering it at packet time.
 
 ---
 

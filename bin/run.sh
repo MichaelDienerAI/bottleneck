@@ -34,6 +34,16 @@ command -v node >/dev/null || { echo "FAIL: node not on PATH"; exit 1; }
 
 # ---------------------------------------------------------------- half one
 SLOTS=$(node src/ledger.js --slots 2>/dev/null || echo 0)
+
+# A ledger that will not parse exits non-zero and the || above already forced a 0.
+# This catches the other shape: a zero exit with something that is not a number on
+# stdout. Without it, `[ "$SLOTS" -le 0 ]` errors on the comparison, the guard reads
+# false, and a corrupted ledger opens the gate instead of closing it. Fail closed —
+# an unreadable ledger is not evidence of a free slot.
+case "$SLOTS" in
+  ''|*[!0-9]*) echo "WARN: ledger returned a non-integer slot count. Treating as 0."; SLOTS=0 ;;
+esac
+
 echo "open slots: $SLOTS"
 
 if [ "$SLOTS" -le 0 ]; then
@@ -48,20 +58,38 @@ node src/report.js     || echo "WARN: board failed"
 node src/walkthrough.js || echo "WARN: walkthrough failed"
 
 # ---------------------------------------------------------------- half two
-if ! command -v claude >/dev/null; then
+# CLAUDE_BIN is overridable so the test harness can point half two at a stub and
+# at a path that does not exist. Nothing else sets it; the default is the CLI.
+CLAUDE_BIN="${CLAUDE_BIN:-claude}"
+
+if ! command -v "$CLAUDE_BIN" >/dev/null; then
   echo "claude CLI not found. Half one is done; the pages are current."
   echo "=== done ==="
   exit 0
 fi
 
 BRIEF="data/briefs/$STAMP.md"
+# The gatherer's instructions live in the subagent definition, not in a prompt
+# file beside this script. --agent runs the session as that subagent, so the
+# bounds it carries — no diagnosis, no hypothesis, no ledger write, no case file
+# — are the same ones an attended run gets. Two copies of those bounds is one
+# copy too many; the copy that drifts is always the one nobody is reading.
+AGENT=".claude/agents/brief.md"
 echo "writing preparation brief -> $BRIEF"
 
-claude -p "$(cat bin/brief-prompt.md)" \
-  --allowedTools "Read,Write,WebSearch,WebFetch" \
-  --max-turns 24 \
-  --output-format text \
-  || echo "WARN: brief run failed or was cut short"
+if [ ! -f "$AGENT" ]; then
+  # Without the guard the CLI still runs, with the default system prompt and no
+  # bounds at all. An unbounded 7am run is worse than a missing brief, so this is
+  # a failure and gets logged as one.
+  echo "WARN: brief run failed — $AGENT not found"
+else
+  "$CLAUDE_BIN" -p "Run today's gathering pass and write the brief for $STAMP." \
+    --agent brief \
+    --allowedTools "Read,Write,WebSearch,WebFetch" \
+    --max-turns 24 \
+    --output-format text \
+    || echo "WARN: brief run failed or was cut short"
+fi
 
 if [ -f "$BRIEF" ]; then
   echo "brief written, $(wc -l < "$BRIEF") lines"
