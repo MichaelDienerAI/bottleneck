@@ -184,7 +184,7 @@ RAND studied thousands of criminal cases and found that clearance depended on in
 
 The same test runs here.
 
-Every ledger row records `observable_grade`, assigned at Gate 0 before any diagnosis begins, and `diagnostic_minutes`, the wall-clock time from slot opened to audit cleared. After twenty packets, `npm run report` compares both against reply rate.
+Every ledger row records `observable_grade`, assigned at Gate 0 before any diagnosis begins, and `diagnostic_minutes`, the wall-clock time from the first diagnostic work to the audit clearing. First diagnostic work includes a live-product measurement taken before any slot opens, because taking the measurement is the diagnostic work. Rows may also carry `measurement_minutes`, optional, recording the protocol run alone as a subset of the total. After twenty packets, `npm run report` compares all of them against reply rate, and prints the two minute splits side by side. If they disagree, the hours that matter are instrument hours rather than diagnosis hours, and that relocates the drum.
 
 Reply is the outcome, not SHIP. SHIP is declared by the same agent that spent the minutes, and a system that grades its own work proves nothing. Reply comes from a human I do not control.
 

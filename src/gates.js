@@ -11,9 +11,31 @@ import { extractCompFromText } from './sources.js';
 
 const has = (hay, needle) => hay.includes(needle.toLowerCase());
 
+// Two haystacks, and the split between them is load-bearing.
+//
+// `hay` is title plus description. `title` is the title alone. Seniority and
+// target_titles read `title` only. hard_disqualifiers and soft_flags read `hay`.
+// Nothing enforces this; it is a property of which variable each rule happens to
+// pass to has(), and it is easy to undo by accident.
+//
+// Why it matters, measured 2026-08-12: nine synonym tokens were added to
+// target_titles, including bare `voice` and `abuse`. The predicted failure was
+// that those words appear constantly in the body text of audio-company postings
+// and would admit hundreds of irrelevant rows. They admitted 9 and 5. The gate
+// held because target_titles never sees the description. Widen it to `hay` and
+// the title gate stops discriminating at all.
+//
+// The cost of that choice, stated plainly so it is a decision and not an
+// oversight: a posting titled "Software Engineer" whose body is entirely
+// persona-evaluation work can never pass Gate 0. The title gate cannot see it,
+// and no later stage re-reads killed rows. That row is lost silently. This is
+// accepted, not fixed: the alternative admits far more noise than it recovers
+// signal, and Gate 0 exists to protect the drum, not to be exhaustive. Revisit
+// only with a kill-log audit showing the missed class is large enough to pay
+// for the noise.
 export function gate0(job, cfg, now = new Date()) {
-  const hay = `${job.title} ${job.description}`.toLowerCase();
-  const title = job.title.toLowerCase();
+  const hay = `${job.title} ${job.description}`.toLowerCase(); // title + body
+  const title = job.title.toLowerCase(); // title ONLY — see note above
   const reasons = [];
   const flags = [];
 
@@ -22,6 +44,7 @@ export function gate0(job, cfg, now = new Date()) {
   if (rejectSeniority) reasons.push(`seniority:${rejectSeniority}`);
 
   // 2. Title relevance. Gracian aphorism 85: refuse to be the wild card.
+  // Reads `title`, never `hay`. That is deliberate. See the note above gate0().
   const titleHit = (cfg.target_titles || []).some((t) => has(title, t));
   if (!titleHit) reasons.push('title:no target family match');
 
@@ -207,14 +230,146 @@ function locationFlags(loc, cfg, now) {
   return flags;
 }
 
-// Allocation weight, then recency. Never prestige.
-export function rank(jobs, archetypeWeights) {
+// Fit. The middle sort key, and the fix for a defect measured 2026-08-12.
+//
+// rank() was archetype weight, then posted date, then nothing. Inside a tier a
+// posting's only merit was freshness. Measured consequences: Sierra's Product
+// Manager, Voice ($230-390K, a voice PM at a voice-agent company) sat at rank
+// 147 of 424, behind roughly thirty fresher rows from its own board including
+// five localization variants of "Software Engineer, Agent (<language> speaking)".
+// Deepgram's Model Evaluation role, the cleanest row in the pool, lost its slot
+// by twenty-four hours to a product marketing role.
+//
+// Deterministic by construction. Every term is a count a regex can settle,
+// because the model's attention is the bottleneck resource and must never be
+// spent ordering a list.
+//
+// SCALE DISCIPLINE, the thing to check if this ever misbehaves:
+//
+//   title    0..3   the HIGHEST SINGLE cfg.title_weights phrase in the title
+//   comp     0 or 1 BINARY. A published band whose ceiling clears the floor.
+//   penalty  -1 ea. per unresolved blocking flag.
+//
+// The title term reads title_weights, NOT target_titles. Those are separate
+// lists doing separate jobs: target_titles filters, title_weights scores. The
+// first version of this function counted target_titles matches, which measured
+// string overlap rather than fit. "Senior PMM, Voice Agent" scored 2 because the
+// gate list happened to contain both `voice` and `agent` as separate entries,
+// while "Senior SWE, Model Evaluation & AI Systems" scored 1, and product
+// marketing took a Deepgram slot from the cleanest eval row in the pool.
+//
+// Highest single match, never the sum. Summing rewards long titles and long
+// titles are a marketing artifact. A role either names the work or it does not.
+//
+// The comp term is binary on purpose. It is worth exactly one point whether the
+// band is $131K or $500K, so it can act as a tiebreaker between equally-fitting
+// rows and can NEVER sort the buffer by salary. Fit is whether a sovereign proof
+// acts on the role; a high band on the wrong work is still the wrong work.
+//
+// comp:unknown is excluded from the penalty. The comp term already prices a
+// missing band at zero, and charging it twice would make compensation a
+// two-point swing against a token range of about one to three. That is the
+// miscalibration this function exists to avoid.
+export function fitScore(job, cfg) {
+  const title = String(job.title || '').toLowerCase();
+
+  // max, not sum. An absent title_weights block scores every row 0 rather than
+  // silently falling back to counting, because falling back would reintroduce
+  // the exact defect this replaced.
+  let best = 0;
+  for (const [phrase, points] of Object.entries(cfg.title_weights || {})) {
+    if (has(title, phrase) && points > best) best = points;
+  }
+
+  const floor = cfg.compensation?.floor_usd ?? 0;
+  const ceiling = job.comp ? job.comp.max ?? job.comp.min : null;
+  const compBonus = ceiling && ceiling > floor ? 1 : 0;
+
+  const penalty = blockingFlags(job.flags || []).filter(
+    (f) => !String(f).startsWith('comp:unknown')
+  ).length;
+
+  return best + compBonus - penalty;
+}
+
+// Archetype weight biases allocation. It does not decide the order by itself.
+//
+// It used to. rank() sorted weight first as a strict lexicographic key, so a
+// 0.15 difference was absolute and no amount of fit could cross it. Measured
+// 2026-08-12, that produced exactly the capture it should have prevented:
+//
+//   IN  buffer  fit 0  Sesame       Product Manager, Hardware   [w0.30]
+//   OUT of it   fit 4  Gray Swan AI Red Team Engineer           [w0.15]
+//
+// A hardware PM scoring nothing sat in front of the drum while the single
+// clearest match for the Deformation Test Bank in a 481-row pool did not, and
+// nine of ten buffer rows came from one archetype. The weights were written as
+// effort allocation across a week. Used as a sort key they stopped allocating
+// and started excluding.
+//
+// One composite number instead: weight * 10 + fit.
+//
+// WHY 10. The weight ladder spans 0.05 to 0.30, so at x10 it spans 2.5 points
+// against an observed fit spread of about 5 (-1 to 4 in the live pool). Weight
+// therefore carries roughly half the authority of fit: enough to keep a heavier
+// archetype ahead at equal fit, not enough to hold a zero above a four. The
+// resulting ladder, in fit points needed to overtake conversational_ai:
+// agentic_startups 1, red_team_boutiques 2, infrastructure 3, frontier_labs 3.
+// At x20 the weight spread reaches 5 and the tier recaptures the sort. At x5 it
+// falls to 1.25 and a single fit point erases the whole ladder, making weight
+// decorative. Every weight lands on an exact binary half at x10, so there is no
+// float-comparison hazard.
+export const WEIGHT_MULTIPLIER = 10;
+
+export function compositeScore(job, archetypeWeights, cfg = null, multiplier = WEIGHT_MULTIPLIER) {
+  const w = archetypeWeights[job.archetype] ?? 0;
+  const fit = cfg ? fitScore(job, cfg) : job.fit ?? 0;
+  return w * multiplier + fit;
+}
+
+// Composite score, then recency. cfg is optional; omitted, fit falls back to a
+// precomputed j.fit and then to 0, so weight alone still orders the list rather
+// than throwing.
+export function rank(jobs, archetypeWeights, cfg = null) {
+  const cache = new Map();
+  const scoreOf = (j) => {
+    if (!cache.has(j)) cache.set(j, compositeScore(j, archetypeWeights, cfg));
+    return cache.get(j);
+  };
   return [...jobs].sort((a, b) => {
-    const wa = archetypeWeights[a.archetype] ?? 0;
-    const wb = archetypeWeights[b.archetype] ?? 0;
-    if (wb !== wa) return wb - wa;
+    const sa = scoreOf(a);
+    const sb = scoreOf(b);
+    if (sb !== sa) return sb - sa;
     return String(b.posted || '').localeCompare(String(a.posted || ''));
   });
+}
+
+// Per-archetype floor. Every archetype with a passing candidate gets at least
+// one row in the buffer before the remaining slots go by score.
+//
+// Composite scoring alone does not guarantee this. A heavy archetype with many
+// good rows can still take every slot, which is capture wearing a fairer hat.
+// The weights say how a week's effort should be spread; a buffer that is nine
+// tenths one archetype is not spreading it. Input must already be ranked. Order
+// is not preserved: callers re-rank the selection for display.
+export function archetypeFloor(ranked, limit, perArchetype = 1) {
+  const taken = new Map();
+  const floor = [];
+  for (const j of ranked) {
+    if (floor.length >= limit) break;
+    const n = taken.get(j.archetype) || 0;
+    if (n < perArchetype) {
+      taken.set(j.archetype, n + 1);
+      floor.push(j);
+    }
+  }
+  const claimed = new Set(floor);
+  const out = [...floor];
+  for (const j of ranked) {
+    if (out.length >= limit) break;
+    if (!claimed.has(j)) out.push(j);
+  }
+  return out;
 }
 
 // Per-company cap. Ranking alone cannot stop one large board from filling the

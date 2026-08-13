@@ -20,7 +20,9 @@ archetypes:
       - { name: Hume AI,      ats: greenhouse, token: humeai }
       - { name: Character.AI, ats: ashby,      token: character }
       - { name: Deepgram,     ats: ashby,      token: deepgram }
-      - { name: Simli,        ats: ashby,      token: simli }   # UNRESOLVED: no public ATS board, see below
+      # Simli moved to `excluded` on 2026-08-12 after a second 404. It is a
+      # dependency of the Persona iO sovereign proof, so its absence here is a
+      # decision and not an oversight. See the excluded block at the bottom.
       - { name: Sesame,       ats: ashby,      token: sesame }
       - { name: Synthesia,    ats: ashby,      token: synthesia }
 
@@ -82,5 +84,15 @@ excluded:
       jobs.cisco.com, which none of the three readers in src/sources.js
       support. Verified 2026-08-12: greenhouse/robustintelligence returns 404.
     companies: [Robust Intelligence]
+  - reason: >
+      No public ATS board. ashby/simli returns 404, verified twice: once in the
+      manual scan of 2026-08-12 and again in the first scheduled run the same
+      evening. The careers link points to LinkedIn, and this repo does not scrape
+      LinkedIn, so there is no endpoint left that src/sources.js can read.
+      Simli is a listed dependency of the Persona iO sovereign proof, so it stays
+      worth watching by hand — it is excluded because it is unreadable, not
+      because it is uninteresting. Revisit if they publish a Greenhouse, Lever,
+      or Ashby board.
+    companies: [Simli]
   - reason: Credential-gated, cannot be bypassed by portfolio
     categories: [academic research nonprofits]

@@ -5,7 +5,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import yaml from 'js-yaml';
 import assert from 'node:assert';
-import { gate0, rank, capPerCompany, blockingFlags, isBlocked, BLOCKING_FLAGS } from './gates.js';
+import { gate0, rank, capPerCompany, blockingFlags, isBlocked, BLOCKING_FLAGS, fitScore, compositeScore, archetypeFloor, WEIGHT_MULTIPLIER } from './gates.js';
 
 const ROOT = path.resolve(import.meta.dirname, '..');
 const cfg = yaml.load(fs.readFileSync(path.join(ROOT, 'profile/gates.example.yaml'), 'utf8'));
@@ -428,6 +428,247 @@ t('a flooding board cannot crowd out a lighter archetype entirely', () => {
   const buffer = capPerCompany(rank(rows, weights), 2).slice(0, 10);
   assert.equal(buffer.filter((r) => r.company === 'Media.Monks').length, 2);
   assert.ok(buffer.some((r) => r.company === 'BigLab'));
+});
+
+// ---------------------------------------------------------------------------
+// Fit term. Added 2026-08-12 after measuring that rank() had no fit key at all
+// and ordered every row inside an archetype tier by posted date alone.
+// ---------------------------------------------------------------------------
+
+// gates.example.yaml title_weights used below: 3 for "model evaluation",
+// "evals", "persona", "conversational ai", "alignment"; 2 for "agent",
+// "solutions engineer", "forward deployed"; 1 for "voice", "abuse",
+// "integrity". Floor is 130000.
+const W = { conversational_ai: 0.3, agentic_startups: 0.25, frontier_labs: 0.05 };
+
+t('fit takes the highest single title_weights match', () => {
+  assert.equal(fitScore(job({ title: 'Voice Operations Coordinator', flags: [] }), cfg), 1);
+  assert.equal(fitScore(job({ title: 'Agent Engineer', flags: [] }), cfg), 2);
+  assert.equal(fitScore(job({ title: 'Model Evaluation Lead', flags: [] }), cfg), 3);
+});
+
+t('fit never sums matches, however many the title carries', () => {
+  // Three weak-to-adjacent phrases in one title. Highest is `agent` at 2.
+  const stuffed = fitScore(job({ title: 'Voice Agent Integrity Abuse Analyst', flags: [] }), cfg);
+  assert.equal(stuffed, 2);
+  // And a single precise phrase still beats it.
+  assert.ok(fitScore(job({ title: 'Evals Engineer', flags: [] }), cfg) > stuffed);
+});
+
+t('a precise single-phrase title outranks a title with two weak tokens', () => {
+  const out = rank(
+    [
+      // Two weak tokens (`voice` 1 + `agent` 2), posted today, with a band.
+      job({
+        key: 'stuffed',
+        title: 'Senior Product Marketing Manager, Voice Agent',
+        posted: '2026-08-12',
+        comp: { min: 150000, max: 190000 },
+        flags: [],
+      }),
+      // One precise phrase (`model evaluation` 3), older, same band shape.
+      job({
+        key: 'precise',
+        title: 'Senior Software Engineer - Model Evaluation & AI Systems',
+        posted: '2026-07-28',
+        comp: { min: 180000, max: 240000 },
+        flags: [],
+      }),
+    ],
+    W,
+    cfg
+  );
+  assert.equal(out[0].key, 'precise');
+  // This is the Deepgram pair from the 2026-08-12 rebuild, where the old
+  // token-counting fit put the marketing row first.
+  assert.equal(fitScore(out[0], cfg), 4);
+  assert.equal(fitScore(out[1], cfg), 3);
+});
+
+t('a published band above the floor is worth exactly one point', () => {
+  const base = { title: 'Agent Engineer', flags: [] };
+  assert.equal(fitScore(job({ ...base, comp: null }), cfg), 2);
+  assert.equal(fitScore(job({ ...base, comp: { min: 140000, max: 190000 } }), cfg), 3);
+});
+
+t('the comp bonus is binary, so fit can never sort by salary', () => {
+  const base = { title: 'Agent Engineer', flags: [] };
+  const modest = fitScore(job({ ...base, comp: { min: 131000, max: 135000 } }), cfg);
+  const huge = fitScore(job({ ...base, comp: { min: 400000, max: 900000 } }), cfg);
+  assert.equal(modest, huge);
+});
+
+t('a band whose ceiling is below the floor earns nothing', () => {
+  const r = fitScore(job({ title: 'Agent Engineer', flags: [], comp: { min: 90000, max: 110000 } }), cfg);
+  assert.equal(r, 2);
+});
+
+t('each blocking flag costs a point, and comp:unknown is not double-charged', () => {
+  const base = { title: 'Agent Engineer', comp: null };
+  assert.equal(fitScore(job({ ...base, flags: [] }), cfg), 2);
+  assert.equal(fitScore(job({ ...base, flags: ['relocation_cost:London'] }), cfg), 1);
+  assert.equal(
+    fitScore(job({ ...base, flags: ['relocation_cost:London', 'country_only:UK'] }), cfg),
+    0
+  );
+  // comp:unknown is already priced by the absent comp bonus. Charging it again
+  // would make compensation a two-point swing on a three-point scale.
+  assert.equal(fitScore(job({ ...base, flags: ['comp:unknown, verify'] }), cfg), 2);
+});
+
+t('informational flags do not cost anything', () => {
+  const r = fitScore(
+    job({ title: 'Agent Engineer', comp: null, flags: ['location_tier:tier_1 London'] }),
+    cfg
+  );
+  assert.equal(r, 2);
+});
+
+t('a better-fitting title outranks a weaker one posted more recently', () => {
+  const out = rank(
+    [
+      job({ key: 'fresh-thin', title: 'Agent Engineer', posted: '2026-08-11', flags: [] }),
+      job({ key: 'stale-rich', title: 'Conversational AI Designer', posted: '2026-04-15', flags: [] }),
+    ],
+    W,
+    cfg
+  );
+  assert.equal(out[0].key, 'stale-rich');
+});
+
+t('a clean row outranks a flagged row of equal fit', () => {
+  const out = rank(
+    [
+      job({ key: 'flagged', title: 'Agent Engineer', posted: '2026-08-11', flags: ['relocation_cost:London'] }),
+      job({ key: 'clean', title: 'Agent Engineer', posted: '2026-08-11', flags: [] }),
+    ],
+    W,
+    cfg
+  );
+  assert.equal(out[0].key, 'clean');
+});
+
+t('at equal fit the heavier archetype still wins', () => {
+  const out = rank(
+    [
+      job({ key: 'light', company: 'BigLab', archetype: 'frontier_labs', title: 'Agent Engineer', flags: [] }),
+      job({ key: 'heavy', company: 'Small', archetype: 'conversational_ai', title: 'Agent Engineer', flags: [] }),
+    ],
+    W,
+    cfg
+  );
+  assert.equal(out[0].key, 'heavy');
+});
+
+t('a strong fit in a light archetype beats a zero fit in a heavy one', () => {
+  // The Sesame / Gray Swan pair, measured 2026-08-12. Under the old strict-tier
+  // sort the hardware PM took a buffer slot and the red team role did not.
+  const out = rank(
+    [
+      job({
+        key: 'sesame-hardware',
+        company: 'Sesame',
+        archetype: 'conversational_ai',
+        title: 'Product Manager, Hardware',
+        posted: '2026-08-12',
+        comp: { min: 175000, max: 280000 },
+        flags: ['relocation_cost:San Francisco'],
+      }),
+      job({
+        key: 'grayswan-redteam',
+        company: 'Gray Swan AI',
+        archetype: 'red_team_boutiques',
+        title: 'Red Team Engineer',
+        posted: '2026-01-01',
+        comp: { min: 180000, max: 240000 },
+        flags: [],
+      }),
+    ],
+    { ...W, red_team_boutiques: 0.15 },
+    cfg
+  );
+  assert.equal(out[0].key, 'grayswan-redteam');
+  // 0.15*10 + 4 = 5.5  beats  0.30*10 + 0 = 3.0
+  assert.equal(compositeScore(out[0], { ...W, red_team_boutiques: 0.15 }, cfg), 5.5);
+  assert.equal(compositeScore(out[1], { ...W, red_team_boutiques: 0.15 }, cfg), 3);
+});
+
+t('the multiplier keeps weight worth less than the fit spread', () => {
+  // A one-step weight gap must be crossable by one fit point, or the ladder is
+  // a tier again under another name.
+  const w = { conversational_ai: 0.3, agentic_startups: 0.25 };
+  const heavyZero = compositeScore(job({ archetype: 'conversational_ai', fit: 0 }), w);
+  const lightOne = compositeScore(job({ archetype: 'agentic_startups', fit: 1 }), w);
+  assert.ok(lightOne > heavyZero);
+});
+
+t('the archetype floor seats every archetype that has a candidate', () => {
+  const rows = rank(
+    [
+      ...Array.from({ length: 12 }, (_, i) =>
+        job({ key: `convo-${i}`, company: `C${i}`, archetype: 'conversational_ai', title: 'Persona Engineer', flags: [] })
+      ),
+      job({ key: 'red-1', company: 'Gray Swan AI', archetype: 'red_team_boutiques', title: 'Red Team Engineer', flags: [] }),
+      job({ key: 'infra-1', company: 'Modal', archetype: 'infrastructure', title: 'Solutions Engineer', flags: [] }),
+    ],
+    { ...W, red_team_boutiques: 0.15, infrastructure: 0.1 },
+    cfg
+  );
+  const out = archetypeFloor(rows, 10);
+  assert.equal(out.length, 10);
+  assert.ok(out.some((r) => r.key === 'red-1'), 'red team must be seated');
+  assert.ok(out.some((r) => r.key === 'infra-1'), 'infrastructure must be seated');
+  // And the heavy archetype still takes every remaining slot.
+  assert.equal(out.filter((r) => r.archetype === 'conversational_ai').length, 8);
+});
+
+t('the floor never seats a second row before the score does', () => {
+  const rows = rank(
+    [
+      job({ key: 'a', company: 'A', archetype: 'conversational_ai', title: 'Persona Engineer', flags: [] }),
+      job({ key: 'b', company: 'B', archetype: 'conversational_ai', title: 'Agent Engineer', flags: [] }),
+      job({ key: 'c', company: 'C', archetype: 'frontier_labs', title: 'Agent Engineer', flags: [] }),
+    ],
+    W,
+    cfg
+  );
+  const out = archetypeFloor(rows, 2);
+  // One slot each: the best conversational row and the only frontier row.
+  assert.deepEqual(out.map((r) => r.key).sort(), ['a', 'c']);
+});
+
+t('recency still breaks ties at equal weight and equal fit', () => {
+  const out = rank(
+    [
+      job({ key: 'older', title: 'Agent Engineer', posted: '2026-01-01', flags: [] }),
+      job({ key: 'newer', title: 'Agent Engineer', posted: '2026-08-01', flags: [] }),
+    ],
+    W,
+    cfg
+  );
+  assert.equal(out[0].key, 'newer');
+});
+
+t('rank without cfg degrades to weight then recency rather than throwing', () => {
+  const out = rank(
+    [
+      job({ key: 'older', title: 'Conversational AI Agent Designer', posted: '2026-01-01' }),
+      job({ key: 'newer', title: 'Agent Engineer', posted: '2026-08-01' }),
+    ],
+    W
+  );
+  assert.equal(out[0].key, 'newer');
+});
+
+t('the cap now keeps the two best-fitting rows, not the two most recent', () => {
+  const rows = [
+    job({ key: 'clone-a', company: 'Sierra', archetype: 'agentic_startups', title: 'Software Engineer, Agent (Dutch speaking)', posted: '2026-06-10', flags: [] }),
+    job({ key: 'clone-b', company: 'Sierra', archetype: 'agentic_startups', title: 'Software Engineer, Agent (Korean speaking)', posted: '2026-06-09', flags: [] }),
+    job({ key: 'real', company: 'Sierra', archetype: 'agentic_startups', title: 'Conversational AI Agent, Persona', posted: '2026-04-15', flags: [] }),
+  ];
+  const out = capPerCompany(rank(rows, W, cfg), 2);
+  assert.ok(out.some((r) => r.key === 'real'), 'the well-fitting April row must survive the cap');
+  assert.equal(out[0].key, 'real');
 });
 
 console.log(`\n${pass} passing`);

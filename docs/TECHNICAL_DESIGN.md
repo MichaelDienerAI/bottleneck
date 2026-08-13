@@ -175,6 +175,10 @@ CLI: `--slots`, `--report`, `--add <file.json>`.
 
 Required: `date`, `company`, `archetype`, `title`, `channel`, `narrative`, `artifact`, `observable_grade`, `diagnostic_minutes`, `hypothesis_source`.
 
+Optional: `measurement_minutes`.
+
+`diagnostic_minutes` is wall-clock time from the **first diagnostic work** to the audit clearing. First diagnostic work includes a live-product measurement taken before any slot opens — taking the measurement is the diagnostic work, so the clock starts when the protocol sheet opens, not when the slot does. `measurement_minutes` records the protocol run alone and is a **subset** of `diagnostic_minutes`; `--add` refuses a row where it exceeds the total.
+
 `observable_grade` must match `S++|S|A|B|C|D|E|F|H` and gets assigned at Gate 0, before any diagnosis. Grading it afterward guarantees it matches the outcome, which destroys the experiment.
 
 **Fitness.** `2 ** stage`, summed weekly. A hiring-manager interview is not three times better than silence, it is eight times better, and linear counting hides that.

@@ -124,9 +124,23 @@ function randExperiment(rows) {
   const med = median(shipped.map((r) => r.diagnostic_minutes));
   const fast = shipped.filter((r) => r.diagnostic_minutes <= med);
   const slow = shipped.filter((r) => r.diagnostic_minutes > med);
-  console.log('  DIAGNOSTIC MINUTES');
+  console.log('  DIAGNOSTIC MINUTES  (first diagnostic work -> audit cleared)');
   console.log(`    at or under median (${med})  n=${fast.length}  reply ${replyRate(fast)}%`);
   console.log(`    over median               n=${slow.length}  reply ${replyRate(slow)}%`);
+
+  // Same split on instrument time alone. Printed beside the total so a divergence
+  // between the two is visible here rather than reconstructed later.
+  const measured = shipped.filter((r) => r.measurement_minutes != null);
+  if (measured.length) {
+    const mm = median(measured.map((r) => r.measurement_minutes));
+    const mFast = measured.filter((r) => r.measurement_minutes <= mm);
+    const mSlow = measured.filter((r) => r.measurement_minutes > mm);
+    console.log(`  MEASUREMENT MINUTES  (protocol run only)   n=${measured.length}`);
+    console.log(`    at or under median (${mm})  n=${mFast.length}  reply ${replyRate(mFast)}%`);
+    console.log(`    over median               n=${mSlow.length}  reply ${replyRate(mSlow)}%`);
+    console.log('    READ IT: if these two splits disagree, the hours that matter are');
+    console.log('    instrument hours, not diagnosis hours. That relocates the drum.');
+  }
 
   console.log('  HYPOTHESIS SOURCE');
   for (const s of [...new Set(shipped.map((r) => r.hypothesis_source))]) {
@@ -154,9 +168,22 @@ function add(file, root = ROOT) {
   const required = [
     'date', 'company', 'archetype', 'title', 'channel', 'narrative', 'artifact',
     'observable_grade',    // S..H, graded at Gate 0, BEFORE any diagnosis work
-    'diagnostic_minutes',  // wall-clock minutes from slot opened to audit cleared
+    // Wall-clock minutes from the FIRST diagnostic work to the audit clearing.
+    // First diagnostic work includes a live-product measurement taken before any
+    // slot opens, because taking the measurement IS the diagnostic work. Revised
+    // 2026-08-12: the old definition started at slot-open, which would have
+    // excluded the Deepgram protocol run entirely and left two different
+    // quantities sharing one column. The RAND median is only meaningful if every
+    // row measures the same thing.
+    'diagnostic_minutes',
     'hypothesis_source',   // posting | measurement | wip_age | refusal | hiring_shape
   ];
+
+  // Optional. Just the protocol run, carved out of diagnostic_minutes above.
+  // Recorded separately so that if instrument time and total diagnosis time ever
+  // predict reply rate differently, the divergence is visible in the data rather
+  // than reconstructed from memory afterward.
+  //   measurement_minutes
   const missing = required.filter((k) => row[k] === undefined || row[k] === '');
   if (missing.length) {
     console.error(`Refusing to add. Missing required fields: ${missing.join(', ')}`);
@@ -166,8 +193,18 @@ function add(file, root = ROOT) {
     console.error(`observable_grade must be a ladder tier, got: ${row.observable_grade}`);
     process.exit(1);
   }
+  // measurement_minutes is a subset of diagnostic_minutes, so a row claiming more
+  // instrument time than total diagnosis time is a recording error, not a finding.
+  if (row.measurement_minutes != null && row.measurement_minutes > row.diagnostic_minutes) {
+    console.error(
+      `measurement_minutes (${row.measurement_minutes}) exceeds diagnostic_minutes (${row.diagnostic_minutes}). ` +
+        'The protocol run is carved out of total diagnosis time, not added to it.'
+    );
+    process.exit(1);
+  }
+
   const rows = loadLedger(root);
-  rows.push({ stage: 0, defect: null, replied: false, ...row });
+  rows.push({ stage: 0, defect: null, replied: false, measurement_minutes: null, ...row });
   saveLedger(rows, root);
   console.log(`Added. Open slots now: ${openSlots(root)}`);
 }

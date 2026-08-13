@@ -83,7 +83,9 @@ This is the prompt that matters. Everything above is setup.
 
 > Run /ship <company>. After the packet is written, show me the audit coverage percentage and the numbered list of unanswered questions from the filing standard. Do not lower the threshold to make the packet pass. If coverage is under 0.50, tell me which questions I need to answer myself before this can go out.
 
-**Exit condition.** `packets/<company>-<date>/` contains four files, and `data/ledger.json` has one row with `observable_grade`, `diagnostic_minutes`, and `hypothesis_source` filled in. Then you send it. The system drafts and you send, every time.
+**Exit condition.** `packets/<company>-<date>/` contains four files, and `data/ledger.json` has one row with `observable_grade`, `diagnostic_minutes`, and `hypothesis_source` filled in, plus `measurement_minutes` if a protocol was run. Then you send it. The system drafts and you send, every time.
+
+`diagnostic_minutes` starts at the **first diagnostic work**, which includes a live-product measurement taken before the slot opened — not at slot-open. Start the clock when you open the protocol sheet.
 
 ---
 
@@ -97,7 +99,7 @@ This is the prompt that matters. Everything above is setup.
 
 ## Prompt 10. After twenty packets, and not before
 
-> Run `npm run report` and read the RAND EXPERIMENT section to me. Tell me whether observable_grade separates reply rate, whether diagnostic_minutes separates reply rate, and which hypothesis_source performs best. Then tell me plainly whether the drum is in the right place. If grade separates and minutes do not, propose the specific architectural change: move hours out of diagnosis and into building measurement instruments, and tell me what that would look like in this repo.
+> Run `npm run report` and read the RAND EXPERIMENT section to me. Tell me whether observable_grade separates reply rate, whether diagnostic_minutes separates reply rate, whether measurement_minutes separates it differently from diagnostic_minutes, and which hypothesis_source performs best. Then tell me plainly whether the drum is in the right place. If grade separates and minutes do not, propose the specific architectural change: move hours out of diagnosis and into building measurement instruments, and tell me what that would look like in this repo.
 
 **Exit condition.** A decision about the architecture backed by twenty rows. Below twenty, the medians are noise and any change you make is tampering, which doubles variance rather than reducing it.
 

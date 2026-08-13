@@ -4,3 +4,9 @@ packets/*/
 !data/.gitkeep
 profile/gates.yaml
 data/cases/
+
+# Generated every run. Regenerating is one command, so versioning the output
+# would be diff noise on every scan.
+data/board.html
+data/walkthrough.html
+data/logs/

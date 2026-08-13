@@ -113,3 +113,35 @@ target_titles:
   - ai product manager
   - technical writer, ai
   - agent
+
+# Scoring list, deliberately separate from target_titles above. That list filters
+# (does this row belong in the pool); this one scores (how close does it sit to
+# the work). fitScore() takes the HIGHEST SINGLE MATCH, never the sum, so a long
+# title full of weak words cannot outscore a short title that names the work.
+#   3 = the work your sovereign proofs act on directly
+#   2 = adjacent work
+#   1 = weak signal
+title_weights:
+  model evaluation: 3
+  evaluation engineer: 3
+  evals: 3
+  red team: 3
+  adversarial: 3
+  persona: 3
+  behavioral: 3
+  alignment: 3
+  trust and safety: 3
+  conversational ai: 3
+  prompt: 3
+
+  forward deployed: 2
+  solutions engineer: 2
+  solutions architect: 2
+  applied ai: 2
+  ai product manager: 2
+  agent: 2
+
+  voice: 1
+  abuse: 1
+  integrity: 1
+  deployment strategist: 1

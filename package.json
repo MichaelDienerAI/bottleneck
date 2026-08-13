@@ -3,13 +3,17 @@
   "version": "0.1.0",
   "description": "Bottleneck. Constraint-first agentic job search. Discovery is subordinated to proof-packet throughput.",
   "type": "module",
-  "engines": { "node": ">=18" },
+  "engines": {
+    "node": ">=18"
+  },
   "scripts": {
     "verify": "node src/verify.js",
     "scan": "node src/scan.js",
     "slots": "node src/ledger.js --slots",
     "report": "node src/ledger.js --report",
-    "test": "node src/gates.test.js"
+    "board": "node src/report.js",
+    "test": "node src/gates.test.js",
+    "walk": "node src/walkthrough.js"
   },
   "dependencies": {
     "js-yaml": "^4.1.0"
