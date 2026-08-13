@@ -1,0 +1,270 @@
+# Diagnosis — one drum slot, one company.
+# Method: .claude/references/bottleneck-detection.md (ladder methods 2/3/5/6/8 used; 2 NOT run, see gaps)
+# hypothesis_source: data/queue.json rank 1, fit 4, composite 7
+# time_started: 2026-08-13
+# time_completed: 2026-08-13
+# archetype_match_confidence: high — Deepgram ships Voice Agent API, an end-to-end
+#   conversational runtime, not merely a transcription API. conversational_ai fits
+#   without forcing. No manual-examination routing needed.
+
+company: Deepgram
+role: Senior Software Engineer - Model Evaluation & AI Systems
+url: https://jobs.ashbyhq.com/deepgram/6f3d761e-4873-43af-a9b1-daeb147661f9
+dated: 2026-08-13
+archetype: conversational_ai
+
+constraint_hypothesis:
+  binding_part: >
+    The Voice Agent third-party "think provider" integration path has no automated
+    pre-release behavioral gate. Four customer-reported defects on that single
+    surface opened on one day, 2026-08-11, and none carried an assignee two days
+    later. The first automated check on that surface is a customer filing an issue.
+  output_capped: >
+    Voice Agent releases and BYO/third-party model integrations that reach GA
+    without a customer-reported behavioral defect. Countable as: defects per
+    release on the think-provider surface. Currently 4 in one day on one provider
+    (aws_bedrock), 5 total that day across Voice Agent surfaces.
+  confidence: medium
+
+# Weakest Link form:
+#   Deepgram ships no more validated Voice Agent think-provider integrations than
+#   its manual pre-release behavioral check allows.
+
+evidence:
+  - claim: >
+      Five Voice Agent defects opened against the official Python SDK on a single
+      day, 2026-08-11. Four name the aws_bedrock think provider. #759 "Voice Agent
+      aws_bedrock think provider returns no output and no error" is a SILENT
+      failure — no output and no error path fired, meaning no canary caught it.
+      #760 "agent.greeting makes the first aws_bedrock request [fail]" is a
+      first-turn defect. #761 type hints list two unavailable model IDs. #762
+      reasoning_mode undocumented, two of its five accepted values fail. #763 groq
+      think provider documented as BYO with a required endpoint. Confirmed live by
+      me on 2026-08-13; none shows an assignee.
+    inspectable_at: https://github.com/deepgram/deepgram-python-sdk/issues?q=is%3Aissue+is%3Aopen+sort%3Acreated-desc
+    verify_seconds: 20
+    source_class: backstage
+    strength: sovereign
+
+  - claim: >
+      Deepgram already attempted to staff model evaluation once and is back in the
+      market. A "Model Evaluation QA Lead" req (Ashby id 1111c5de-2f90-4f38-a353-115a64a9ca33,
+      listed on Remotive 2026-02-09) is no longer live: the Remotive listing returns
+      HTTP 410 Gone, and its Ashby URL renders no title while the live target req at
+      the same host renders "Senior Software Engineer - Model Evaluation & AI Systems
+      @ Deepgram" under an identical fetch. It is also absent from the 2026-08-13
+      board snapshot. A differently-titled evaluation req opened 2026-07-28, roughly
+      5.5 months later. Method 8: the constraint survived their attempt to relieve it.
+    inspectable_at: https://remotive.com/remote/jobs/qa/model-evaluation-qa-lead-3618128 (410 Gone) vs https://jobs.ashbyhq.com/deepgram/6f3d761e-4873-43af-a9b1-daeb147661f9 (renders)
+    verify_seconds: 30
+    source_class: backstage
+    strength: sovereign
+
+  - claim: >
+      The withdrawn Model Evaluation QA Lead description states the role reports to
+      the QA Engineering Manager and partners with the Active Learning and Data Ops
+      teams, and that its job was "automated model evaluation pipelines that run
+      against every candidate model before release." This is a second, independent
+      posting — not the target posting — and it establishes that the pre-release
+      automated gate was already a named unmet need in February 2026.
+    inspectable_at: search index cache of https://jobs.ashbyhq.com/Deepgram/1111c5de-2f90-4f38-a353-115a64a9ca33 ; source page itself now dark
+    verify_seconds: 40
+    source_class: backstage
+    strength: circumstantial
+
+  - claim: >
+      No public Deepgram evaluation harness, benchmark-methodology repo, or
+      reproducible WER/latency regression suite exists across the ~112-115 repos in
+      the GitHub org. The only public benchmark is a marketing page
+      (deepgram.com/learn/speech-to-text-benchmarks) with no methodology artifact.
+      This is the specific absence my kill query targeted, and finding it is what
+      let the hypothesis survive.
+    inspectable_at: https://github.com/orgs/deepgram/repositories?sort=updated
+    verify_seconds: 30
+    source_class: backstage
+    strength: circumstantial
+
+  - claim: >
+      deepgram/examples issue #276, opened 2026-06-07, still open 67 days later,
+      requests "a Python testing framework that lets developers define voice agent
+      test scenarios in YAML, run them against Deepgram's Voice Agent API, and
+      evaluate results using automated quality scoring," motivated by the assertion
+      that this is currently impossible without manual testing that cannot integrate
+      into CI/CD.
+      DOWNGRADED ON INSPECTION: the author is `deepgram-robot`, a bot that files
+      example-project suggestions into a DevRel repo. It is 1 of 75 open, unassigned
+      suggestions, and I have no reaction count to weight its age by demand. Per the
+      method ladder's critical bridge, old-and-ignored is noise. This is NOT an
+      internal engineering admission and must not be presented as one.
+    inspectable_at: https://github.com/deepgram/examples/issues/276
+    verify_seconds: 25
+    source_class: backstage
+    strength: circumstantial
+
+  - claim: >
+      SPECIFICITY LEAK — labelled as such, and front stage by definition. The target
+      posting contains the clause "Integrate evaluation and quality gates into CI/CD
+      so quality is verified continuously, not manually." The phrase "not manually"
+      is not template language; it names a current state rather than a future duty.
+      The posting also names "runaway/hallucination detection," a specific ASR
+      decoder failure mode, not a generic quality bullet. Cited here only as a leak
+      corroborating backstage rows above, never as a standalone source. No evidence
+      row in this file rests on the posting alone.
+    inspectable_at: https://jobs.ashbyhq.com/deepgram/6f3d761e-4873-43af-a9b1-daeb147661f9
+    verify_seconds: 20
+    source_class: frontstage
+    strength: circumstantial
+
+  - claim: >
+      Co-occurrence, stated as inference and not causation (P4 respected — two dated
+      records exist for both sides, but nothing links them). The Senior PMM, Voice
+      Agent req published 2026-08-06 names "BYO model support" as a launch category
+      it must market. Five days later, 2026-08-11, four customer defects landed on
+      exactly the BYO think-provider surface.
+    inspectable_at: https://jobs.ashbyhq.com/deepgram/928303de-61d6-46ec-b10a-08709e1deb4a and https://github.com/deepgram/deepgram-python-sdk/issues/759
+    verify_seconds: 45
+    source_class: backstage
+    strength: circumstantial
+
+disconfirming:
+  query_issued: >
+    PRIMARY KILL QUERY (issued after hypothesis formation): "Deepgram github public
+    evaluation harness benchmark repository WER regression testing". Designed to kill
+    the hypothesis outright — if Deepgram already ships a public, actively-maintained
+    eval/benchmark harness, then evaluation is already mechanized, the req adds
+    capacity at a non-bottleneck, and P3 applies (a limit not reached is not a
+    constraint).
+    SECONDARY KILL QUERY: "Deepgram 'Model Evaluation QA Lead' OR 'Engineering
+    Manager, Active Learning' job opening" — designed to test the brief's
+    two-concurrent-reqs claim in both directions.
+    THIRD (attempted, failed): live read of
+    https://api.ashbyhq.com/posting-api/job-board/deepgram?includeCompensation=true
+    to recount the board independently.
+  result: >
+    PRIMARY: no public Deepgram evaluation harness, benchmark-methodology repo, or
+    reproducible regression suite found across the org. Only a marketing benchmark
+    page with no methodology. Hypothesis SURVIVED. The same query surfaced
+    deepgram/examples #276, which initially looked like strong confirmation and which
+    I downgraded to circumstantial on direct inspection once I saw the bot authorship
+    and the 75-item unassigned backlog it sits in.
+    SECONDARY: KILLED the concurrency sub-claim. The Model Evaluation QA Lead req is
+    NOT concurrently open — Remotive returns HTTP 410 Gone and the Ashby URL renders
+    no title under a fetch that renders the live req's title. But it converted the
+    claim into something stronger: a sequential re-attempt at the same function
+    ~5.5 months apart, which is method 8 and confirms rather than hypothesizes the
+    constraint.
+    THIRD: FAILED. WebFetch truncated the JSON at 6 of ~79 titles. I could not
+    independently recount the board and therefore treat the brief's "exactly one of
+    79 titles contains Eval" as unverified. It is not load-bearing for this diagnosis.
+  survived: true
+
+proof_match:
+  asset: test_harness (Adversarial evaluation harness, test-mra.js) — lead asset; persona_io — corroborating credential
+  tier: sovereign
+  acts_on_constraint: true
+  mechanism: >
+    test-mra.js is a standalone behavioral evaluation harness with objective coding
+    for drift, sycophancy, and fabricated continuity — precisely the class of silent
+    conversational failure that #759 represents, where the agent returns no output
+    and no error and nothing fires. Michael has already built the pass/fail
+    methodology layer the posting asks for ("translate expectations into automated,
+    enforceable pass/fail gates"), and it is publicly readable in the aline-backend
+    repo. persona_io corroborates: its depends_on list names Deepgram, so he is a
+    production Deepgram customer running a multi-vendor real-time voice pipeline
+    under 800ms — he is already load-testing the exact surface the constraint sits on.
+  known_gaps_respected: >
+    Gap 1 (ML/fine-tuning): CLEAR. The role requires eval infrastructure, thresholds,
+    and statistical reasoning about regressions — not training loops or loss design.
+    Nothing in a packet may claim fine-tuning capability. Innodata RLHF work is
+    speculative and NDA-bound; it may index, never lead.
+    Gap 2 (agent-assisted development): INVERTED INTO AN ASSET. Deepgram's posting
+    demands it — "AI use and comfort aren't optional... even build your own into your
+    everyday work. We measure how effectively AI is applied." This is the exact
+    company class the ledger's disposition names as a target.
+    Gap 3 (Calibration Layer): must be stated as written and test-exercised, never
+    as wired into the deployed path.
+  honest_shortfall: >
+    The posting asks for 5+ years shipping test infrastructure, Python/Rust/Go, and
+    orchestration against large GPU clusters. test-mra.js is JavaScript and
+    single-purpose, and is not wired into CI. The proof acts on the METHODOLOGY axis
+    of the constraint, not the orchestration-at-scale axis. A packet that blurs this
+    overstates and must be rejected by the auditor.
+
+decision_maker:
+  name: INSUFFICIENT_EVIDENCE — no named human established. A dated org announcement, a conference talk byline, or a commit under a deepgram.com address on an eval-related repo would settle it. Never guess.
+  title: QA Engineering Manager
+  reachable_via: >
+    Two paths. (1) Ashby ATS on the target req — the default, and weak. (2) A
+    non-ATS public engineering surface: the five unassigned 2026-08-11 issues on
+    deepgram/deepgram-python-sdk, where Deepgram engineering demonstrably reads and
+    triages in public. A reproducible repro plus a behavioral test case filed there
+    reaches the same function without going through the ATS. careers@deepgram.com is
+    named in the posting but is a generic inbox, not a decision-maker path.
+  source: >
+    Title comes from the withdrawn "Model Evaluation QA Lead" req description
+    ("Reporting to the QA Engineering Manager"), a SEPARATE posting from the target,
+    recovered via search index. That the target req reports to the same manager is
+    INFERENCE, marked as such. The target posting carries no reporting line.
+
+verdict: SHIP
+reason: >
+  A silent-failure defect cluster on one Voice Agent surface reached customers
+  unassigned on a dated day, Deepgram already failed once to staff the exact
+  function that would have caught it, and Michael holds a publicly inspectable
+  behavioral eval harness plus a production dependency on the same vendor surface.
+
+# SHIP checkpoint audit — each has its own veto, none outvotes another:
+#   binding part named ......................... PASS (one part, one number, one date, one link)
+#   sovereign backstage evidence ............... PASS (two rows: the 2026-08-11 cluster; the withdrawn req)
+#   disconfirming query logged ................. PASS (primary survived, secondary killed a sub-claim)
+#   sovereign proof, acts_on_constraint true ... PASS (test_harness, publicly readable)
+#   decision-maker TITLE identified ............ PASS (QA Engineering Manager; name still unknown, which SHIP permits)
+#   no unresolved BLOCKING Gate 0 flags ........ PASS (queue row flags: []; band $180-240K published; bare remote, no office signal)
+# Blocking set read from src/gates.js BLOCKING_FLAGS on 2026-08-13:
+#   relocation_cost: / country_only: / remote_unverified: / comp:unknown — none present.
+
+gaps:
+  - >
+    THE LIVE-PRODUCT MEASUREMENT IS UNRUN. data/protocols/deepgram.md has not been
+    executed. No latency number, no barge-in latency, no S1/S2/S3 signature coding
+    exists, and none is claimed anywhere in this file. This is the single highest-value
+    missing record: method 2 is the top-payoff move on the ladder because it collapses
+    diagnosis and proof into one object, and a dated T4 barge-in latency or a fired S3
+    fabricated-continuity signature on Deepgram's own Voice Agent would take this
+    diagnosis from medium to high confidence AND become the packet's lead artifact.
+    Run the six turns before the packet goes out.
+  - >
+    LEDGER DEFECT, blocks a different packet framing. proof-ledger.yaml lists
+    deformation_test_bank under `sovereign` but its inspect_at is TODO_PUBLIC_URL.
+    By the ledger's own definition — a stranger can inspect it without asking Michael
+    — it is not currently sovereign. This is why test_harness is the lead asset here
+    and not the Test Bank, which is otherwise the closer methodological match. A
+    public URL would settle it and would materially strengthen this and every future
+    evaluation-role packet.
+  - >
+    The hiring manager's NAME. Only the title is established, and only by inference
+    from a withdrawn sibling req. A dated org announcement, a talk byline, or a
+    deepgram.com-attributed commit on an eval repo would settle it.
+  - >
+    Independent recount of the 79-req board. My live WebFetch of the Ashby posting
+    API truncated at 6 titles, so "exactly one of 79 titles contains Eval" and all
+    departmental counts remain unverified by me and are treated as weak. A shell
+    fetch of https://api.ashbyhq.com/posting-api/job-board/deepgram?includeCompensation=true
+    would settle it. Not load-bearing for this verdict.
+  - >
+    Whether the 2026-08-11 defects are service-side or SDK-codegen-side. The Python
+    SDK is at least partly generated (two of five oldest open PRs are fern-api[bot]),
+    so #761's bad type hints could be spec drift rather than a model-quality
+    regression. #759's silent failure is service-side behavior and is the row this
+    diagnosis actually rests on. A maintainer reply on #759 naming the layer would
+    settle it.
+  - >
+    Whether the five 2026-08-11 issues come from one reporter working through a
+    surface or five independent reporters. One reporter is a single integration
+    attempt; five is a demand-weighted cluster and much stronger. The issue list view
+    does not show authors in the fetched render. Opening the five issues would settle
+    it in about 60 seconds.
+  - >
+    Release cadence. developers.deepgram.com/changelog returns 404 and will not
+    paginate, so the gap between releases is unmeasured and method 7 (promise vs
+    changelog) could not be run. An RSS feed or a rendered index would settle it.

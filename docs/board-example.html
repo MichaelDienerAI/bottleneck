@@ -1,0 +1,300 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Bottleneck — 2026-08-13</title>
+<style>
+  :root {
+    --paper:   #EDEEF0;
+    --ink:     #14161A;
+    --rule:    #C3C7CE;
+    --muted:   #62676F;
+    --signal:  #A8430F;
+    --steady:  #2F5D50;
+    --display: "Avenir Next Condensed", "Oswald", "Arial Narrow", system-ui, sans-serif;
+    --body:    Charter, "Iowan Old Style", Georgia, serif;
+    --data:    "SF Mono", ui-monospace, Menlo, monospace;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--paper); color: var(--ink);
+    font-family: var(--body); font-size: 17px; line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+  }
+  .wrap { max-width: 940px; margin: 0 auto; padding: 48px 28px 96px; }
+
+  header { border-bottom: 2px solid var(--ink); padding-bottom: 18px; margin-bottom: 40px; }
+  h1 {
+    font-family: var(--display); font-size: clamp(44px, 9vw, 84px);
+    letter-spacing: -0.01em; text-transform: uppercase; margin: 0; line-height: 0.92;
+  }
+  .sub { font-family: var(--data); font-size: 12px; letter-spacing: 0.08em;
+         text-transform: uppercase; color: var(--muted); margin: 10px 0 0; }
+
+  h2 {
+    font-family: var(--display); text-transform: uppercase; letter-spacing: 0.02em;
+    font-size: 26px; margin: 56px 0 6px; padding-bottom: 6px;
+    border-bottom: 1px solid var(--rule);
+  }
+  .lede { color: var(--muted); margin: 0 0 22px; font-size: 16px; }
+
+  /* Drum */
+  .drum { display: flex; align-items: baseline; gap: 18px; flex-wrap: wrap; margin: 4px 0 0; }
+  .drum-n { font-family: var(--display); font-size: 92px; line-height: 0.85; }
+  .pips { display: flex; gap: 7px; }
+  .pip { width: 26px; height: 26px; border: 2px solid var(--ink); }
+  .pip.spent { background: var(--ink); }
+
+  /* Funnel: bar widths are the real proportions, not decoration. */
+  .stage { margin: 0 0 22px; }
+  .bar { height: 30px; background: var(--ink); }
+  .stage:nth-child(2) .bar { background: #3C4149; }
+  .stage:nth-child(3) .bar { background: var(--steady); }
+  .stage:nth-child(4) .bar { background: var(--signal); }
+  .stage-head { display: flex; align-items: baseline; gap: 12px; margin-bottom: 5px; }
+  .stage-n { font-family: var(--data); font-size: 20px; font-weight: 600; }
+  .stage-l { font-family: var(--display); text-transform: uppercase;
+             letter-spacing: 0.04em; font-size: 17px; }
+  .stage-say { color: var(--muted); font-size: 15px; margin: 6px 0 0; max-width: 62ch; }
+  .drop { font-family: var(--data); font-size: 12px; color: var(--muted);
+          text-transform: uppercase; letter-spacing: 0.06em; margin: 6px 0 0; }
+
+  /* Tables */
+  table { width: 100%; border-collapse: collapse; font-size: 16px; }
+  th { font-family: var(--data); font-size: 11px; letter-spacing: 0.08em;
+       text-transform: uppercase; color: var(--muted); text-align: left;
+       border-bottom: 1px solid var(--rule); padding: 0 10px 7px 0; font-weight: 600; }
+  td { padding: 9px 10px 9px 0; border-bottom: 1px solid var(--rule); vertical-align: top; }
+  td.n { font-family: var(--data); text-align: right; width: 74px; white-space: nowrap; }
+
+  /* Queue rows */
+  ol.queue { list-style: none; margin: 0; padding: 0; }
+  .row { display: flex; gap: 16px; padding: 16px 0; border-bottom: 1px solid var(--rule); }
+  .rank { font-family: var(--display); font-size: 30px; color: var(--rule); width: 34px; flex: none; }
+  .row-main { flex: 1 1 auto; min-width: 0; }
+  .row-title { margin: 0; font-weight: 600; }
+  .row-co { margin: 2px 0 0; color: var(--muted); font-size: 15px; }
+  .dot { padding: 0 8px; }
+  .arch { font-family: var(--data); font-size: 12px; text-transform: uppercase; letter-spacing: 0.06em; }
+  .blocks { margin: 9px 0 0; padding: 0; list-style: none; }
+  .blocks li { font-size: 14px; color: var(--signal); padding-left: 15px; position: relative; }
+  .blocks li::before { content: "→"; position: absolute; left: 0; }
+  .clear { margin: 9px 0 0; font-size: 14px; color: var(--steady); }
+  .row-meta { flex: none; text-align: right; }
+  .pay { display: block; font-family: var(--data); font-size: 14px; }
+  .posted { display: block; font-family: var(--data); font-size: 11px;
+            color: var(--muted); text-transform: uppercase; letter-spacing: 0.05em; margin-top: 4px; }
+
+  .next { border-left: 4px solid var(--signal); padding: 4px 0 4px 18px; margin: 20px 0 0; font-size: 19px; }
+  .note { color: var(--muted); font-size: 15px; }
+  ul.plain { padding-left: 18px; }
+  ul.plain li { margin-bottom: 7px; }
+  footer { margin-top: 72px; padding-top: 16px; border-top: 1px solid var(--rule);
+           font-family: var(--data); font-size: 11px; text-transform: uppercase;
+           letter-spacing: 0.07em; color: var(--muted); }
+  @media (max-width: 620px) {
+    .drum-n { font-size: 66px; }
+    .row { flex-wrap: wrap; }
+    .row-meta { text-align: left; width: 100%; padding-left: 50px; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header>
+  <h1>Where the<br>search stands</h1>
+  <p class="sub">Bottleneck · generated 2026-08-13 · reads whatever is in data/ right now</p>
+  <p class="sub" style="color:var(--signal)">Scanned 2026-08-12 · no new postings since 2026-08-12. The counts below are the live boards, not a leftover.</p>
+</header>
+
+<h2>This week</h2>
+<p class="lede">You can build about 5 proper cases a week. That number, not the number of jobs out there, is what limits this whole thing.</p>
+<div class="drum">
+  <span class="drum-n">5</span>
+  <div>
+    <div class="pips"><span class="pip"></span><span class="pip"></span><span class="pip"></span><span class="pip"></span><span class="pip"></span></div>
+    <p class="note" style="margin:10px 0 0">0 used, 5 left. Week starts Monday 2026-08-11.</p>
+  </div>
+</div>
+
+<h2>What happened to 3,453 jobs</h2>
+<p class="lede">The bars below are drawn to scale. Almost everything gets thrown out, on purpose, because your time is the scarce thing rather than the job listings. Nothing new has been posted since 2026-08-12, but these are still today's boards.</p>
+
+    <div class="stage">
+      <div class="stage-head"><span class="stage-n">3,453</span><span class="stage-l">Jobs on the boards</span></div>
+      <div class="bar" style="width:100%"></div>
+      <p class="stage-say">Everything the 27 company job boards were advertising when the scan ran.</p>
+      
+    </div>
+    <div class="stage">
+      <div class="stage-head"><span class="stage-n">424</span><span class="stage-l">Worth a second look</span></div>
+      <div class="bar" style="width:12.2791775267883%"></div>
+      <p class="stage-say">Survived the fixed rules: right kind of work, somewhere you would go, pay above your floor, no dealbreakers.</p>
+      <p class="drop">3,029 dropped here</p>
+    </div>
+    <div class="stage">
+      <div class="stage-head"><span class="stage-n">10</span><span class="stage-l">In the queue</span></div>
+      <div class="bar" style="width:0.35%"></div>
+      <p class="stage-say">The best of those, capped at two per company so one big employer cannot take every slot.</p>
+      <p class="drop">414 dropped here</p>
+    </div>
+    <div class="stage">
+      <div class="stage-head"><span class="stage-n">5</span><span class="stage-l">You can research this week</span></div>
+      <div class="bar" style="width:0.35%"></div>
+      <p class="stage-say">Your real capacity for building a proper case on a company. This number is the whole point.</p>
+      <p class="drop">5 dropped here</p>
+    </div>
+
+<h2>Why jobs got thrown out</h2>
+<p class="lede">"Killed on its own" means that rule was the only thing standing between the job and your queue. Those are the rules actually doing the work.</p>
+<table>
+  <tr><th>Reason</th><th class="n">Total</th><th class="n">Alone</th></tr>
+  <tr><td>Job title is not work you do</td><td class="n">2,986</td><td class="n">2,527</td></tr><tr><td>Somewhere you would not go</td><td class="n">440</td><td class="n">38</td></tr><tr><td>Wrong rung, too junior or too senior</td><td class="n">33</td><td class="n">1</td></tr><tr><td>Published pay tops out below your floor</td><td class="n">24</td><td class="n">0</td></tr><tr><td>Needs a security clearance</td><td class="n">15</td><td class="n">1</td></tr><tr><td>Contract, temp, or staffing agency</td><td class="n">7</td><td class="n">0</td></tr><tr><td>Unpaid, commission-only, or equity-only</td><td class="n">5</td><td class="n">0</td></tr><tr><td>Requires skills you have not shown publicly</td><td class="n">5</td><td class="n">0</td></tr>
+</table>
+
+<h2>In the queue</h2>
+<p class="lede">Ranked best first. An arrow means something has to be settled before you write to them; a job with arrows is not disqualified, it just needs an answer you have not given yet.</p>
+<ol class="queue">
+      <li class="row">
+        <span class="rank">1</span>
+        <div class="row-main">
+          <p class="row-title">Senior Software Engineer - Model Evaluation &amp; AI Systems</p>
+          <p class="row-co">Deepgram<span class="dot">·</span><span class="arch">Conversational AI</span></p>
+          <p class="clear">Nothing to resolve. Ready to research.</p>
+        </div>
+        <div class="row-meta">
+          <span class="pay">$180K–$240K</span>
+          <span class="posted">posted 2026-07-28</span>
+        </div>
+      </li>
+      <li class="row">
+        <span class="rank">2</span>
+        <div class="row-main">
+          <p class="row-title">Senior Product Marketing Manager, Voice Agent</p>
+          <p class="row-co">Deepgram<span class="dot">·</span><span class="arch">Conversational AI</span></p>
+          <p class="clear">Nothing to resolve. Ready to research.</p>
+        </div>
+        <div class="row-meta">
+          <span class="pay">$150K–$190K</span>
+          <span class="posted">posted 2026-08-06</span>
+        </div>
+      </li>
+      <li class="row">
+        <span class="rank">3</span>
+        <div class="row-main">
+          <p class="row-title">Technical Program Manager, Model Alignment and Deployment </p>
+          <p class="row-co">Character.AI<span class="dot">·</span><span class="arch">Conversational AI</span></p>
+          <ul class="blocks"><li>You would have to move before January</li></ul>
+        </div>
+        <div class="row-meta">
+          <span class="pay">$220K–$260K</span>
+          <span class="posted">posted 2026-06-01</span>
+        </div>
+      </li>
+      <li class="row">
+        <span class="rank">4</span>
+        <div class="row-main">
+          <p class="row-title">Solutions Architect</p>
+          <p class="row-co">Synthesia<span class="dot">·</span><span class="arch">Conversational AI</span></p>
+          <p class="clear">Nothing to resolve. Ready to research.</p>
+        </div>
+        <div class="row-meta">
+          <span class="pay">$140K–$190K</span>
+          <span class="posted">posted 2025-11-21</span>
+        </div>
+      </li>
+      <li class="row">
+        <span class="rank">5</span>
+        <div class="row-main">
+          <p class="row-title">Research Engineer, AI Safety &amp; Alignment</p>
+          <p class="row-co">Character.AI<span class="dot">·</span><span class="arch">Conversational AI</span></p>
+          <ul class="blocks"><li>You would have to move before January</li></ul>
+        </div>
+        <div class="row-meta">
+          <span class="pay">$225K–$400K</span>
+          <span class="posted">posted 2025-10-03</span>
+        </div>
+      </li>
+      <li class="row">
+        <span class="rank">6</span>
+        <div class="row-main">
+          <p class="row-title">Red Team Engineer</p>
+          <p class="row-co">Gray Swan AI<span class="dot">·</span><span class="arch">Red-team shops</span></p>
+          <p class="clear">Nothing to resolve. Ready to research.</p>
+        </div>
+        <div class="row-meta">
+          <span class="pay">$110K–$185K</span>
+          <span class="posted">posted 2026-08-13</span>
+        </div>
+      </li>
+      <li class="row">
+        <span class="rank">7</span>
+        <div class="row-main">
+          <p class="row-title">Frontend Engineer, AI Observability &amp; Evals Platform </p>
+          <p class="row-co">LangChain<span class="dot">·</span><span class="arch">Agentic startups</span></p>
+          <ul class="blocks"><li>You would have to move before January</li></ul>
+        </div>
+        <div class="row-meta">
+          <span class="pay">$160K–$195K</span>
+          <span class="posted">posted 2026-08-12</span>
+        </div>
+      </li>
+      <li class="row">
+        <span class="rank">8</span>
+        <div class="row-main">
+          <p class="row-title">Strategic Solutions Engineer, East</p>
+          <p class="row-co">Decagon<span class="dot">·</span><span class="arch">Agentic startups</span></p>
+          <p class="clear">Nothing to resolve. Ready to research.</p>
+        </div>
+        <div class="row-meta">
+          <span class="pay">$240K–$280K</span>
+          <span class="posted">posted 2026-07-01</span>
+        </div>
+      </li>
+      <li class="row">
+        <span class="rank">9</span>
+        <div class="row-main">
+          <p class="row-title">Senior Manager, Solutions Architect</p>
+          <p class="row-co">Vercel<span class="dot">·</span><span class="arch">Infrastructure</span></p>
+          <p class="clear">Nothing to resolve. Ready to research.</p>
+        </div>
+        <div class="row-meta">
+          <span class="pay">$280K–$350K</span>
+          <span class="posted">posted 2026-08-10</span>
+        </div>
+      </li>
+      <li class="row">
+        <span class="rank">10</span>
+        <div class="row-main">
+          <p class="row-title">Researcher, Alignment CoT Monitorability</p>
+          <p class="row-co">OpenAI<span class="dot">·</span><span class="arch">Frontier labs</span></p>
+          <ul class="blocks"><li>You would have to move before January</li></ul>
+        </div>
+        <div class="row-meta">
+          <span class="pay">$250K–$445K</span>
+          <span class="posted">posted 2026-08-04</span>
+        </div>
+      </li></ol>
+<p class="note" style="margin-top:16px">Spread across kinds of company: Conversational AI 5, Red-team shops 1, Agentic startups 2, Infrastructure 1, Frontier labs 1.</p>
+
+<h2>Letters sent</h2>
+<p class="note">None yet. This is the only table on the page that measures whether any of the rest of it works. Everything above is preparation.</p>
+
+<h2>Do this next</h2>
+<p class="next">Pick the top company, research it, and write one letter. Nothing here counts until a person reads one.</p>
+
+<h2>Loose ends</h2>
+<ul class="plain">
+  
+  
+  <li>No company files yet. They get written the first time you research a company.</li>
+  <li>Measurement sheets waiting: deepgram.</li>
+  <li>Nothing has been sent, so none of the numbers above have been tested against a real reply yet.</li>
+</ul>
+
+<footer>Bottleneck · the slowest part sets the pace for everything else</footer>
+</div>
+</body>
+</html>

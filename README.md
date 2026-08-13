@@ -53,10 +53,22 @@ node src/scan.js        # fetches, gates, writes data/candidates.json
 
 Then open the folder in VS Code with Claude Code and run `/scan`, `/diagnose`, `/ship`.
 
+To see where things stand in plain language rather than in JSON:
+
+```bash
+npm run board && open data/board.html
+```
+
+That reads whatever is in `data/` at that moment and writes a single self-contained page: how many jobs the boards were advertising, what survived each rule, what is sitting in the queue and what has to be settled before you write to them, and how many research slots you have left this week. A sample rendered from representative data is at `docs/board-example.html`.
+
 ## Documentation
+
+**New here? `docs/GETTING_STARTED.md`.** Fifteen numbered steps from an empty folder to your first letter sent.
+**Then `docs/USER_GUIDE.md`.** How the system works and what each worker does, in plain language.
 
 `docs/ARCHITECTURE.md` explains what the system is and why each part exists, in cause-and-effect form.
 `docs/TECHNICAL_DESIGN.md` explains how it is built: schemas, interfaces, gates, and the test plan.
+`docs/AUTOMATION.md` sets it to run itself Monday, Wednesday, and Friday.
 `docs/RUNBOOK.md` is the sequenced set of Claude Code prompts that take this from unzipped to first packet sent.
 
 Read the architecture document first. Section 10 labels which claims are constructed and which are demonstrated, and section 11 states the one experiment that could change the design.
