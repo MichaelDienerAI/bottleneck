@@ -1,0 +1,86 @@
+# Target boards by archetype.
+# Weights are the weekly effort allocation from Section 04 of The $130K+ Search.
+#
+# WARNING: every `token` below is a best guess, not a verified value.
+# Run `node src/verify.js` before the first scan. It reports which resolve and
+# which 404. Correct this file from that output. A wrong token is a silent zero,
+# which is worse than an error.
+#
+# Finding a token: open the company careers page, look at the network requests or
+# the URL. Greenhouse shows job-boards.greenhouse.io/<token>. Lever shows
+# jobs.lever.co/<token>. Ashby shows jobs.ashbyhq.com/<token>.
+
+archetypes:
+
+  conversational_ai:
+    weight: 0.30
+    note: Highest fit. You use their vendors and your test bank diagnoses their failures.
+    companies:
+      - { name: ElevenLabs,   ats: ashby,      token: elevenlabs }
+      - { name: Hume AI,      ats: greenhouse, token: humeai }
+      - { name: Character.AI, ats: ashby,      token: character }
+      - { name: Deepgram,     ats: ashby,      token: deepgram }
+      - { name: Simli,        ats: ashby,      token: simli }   # UNRESOLVED: no public ATS board, see below
+      - { name: Sesame,       ats: ashby,      token: sesame }
+      - { name: Synthesia,    ats: ashby,      token: synthesia }
+
+  agentic_startups:
+    weight: 0.25
+    note: Value agent-native development directly. Founders reachable.
+    companies:
+      - { name: Sierra,       ats: ashby,      token: sierra }
+      - { name: Decagon,      ats: ashby,      token: decagon }
+      - { name: Cognition,    ats: ashby,      token: cognition }
+      - { name: Harvey,       ats: ashby,      token: harvey }
+      - { name: Cursor,       ats: ashby,      token: cursor }
+      - { name: LangChain,    ats: ashby,      token: langchain }
+
+  red_team_boutiques:
+    weight: 0.15
+    note: No credential gate. The Deformation Test Bank is the calling card.
+    companies:
+      - { name: METR,         ats: lever,      token: metr }
+      - { name: Gray Swan AI, ats: ashby,      token: "Gray Swan AI" }
+      - { name: Haize Labs,   ats: greenhouse, token: haizelabs }
+      - { name: Patronus AI,  ats: greenhouse, token: patronusaiinc }
+
+  experiential_design:
+    weight: 0.15
+    note: Portfolio over pedigree. Lead with performance background and SMU work.
+    companies:
+      - { name: Wieden+Kennedy, ats: greenhouse, token: wk }
+      - { name: Media.Monks,    ats: greenhouse, token: monks }
+      - { name: Active Theory,  ats: lever,      token: activetheory }
+
+  infrastructure:
+    weight: 0.10
+    note: You are a power user of their SDKs. DevRel and solutions engineering.
+    companies:
+      - { name: Supabase,     ats: ashby,      token: supabase }
+      - { name: Railway,      ats: ashby,      token: railway }
+      - { name: Vercel,       ats: greenhouse, token: vercel }
+      - { name: Modal,        ats: ashby,      token: modal }
+      - { name: Baseten,      ats: ashby,      token: baseten }
+
+  frontier_labs:
+    weight: 0.05
+    note: >
+      Do not apply through the front door. Pedigree gate is high and the ATS
+      insulates the decision-maker. Scan only to learn what they are hiring for,
+      which tells you where the field's constraints are moving.
+    companies:
+      - { name: Anthropic,    ats: greenhouse, token: anthropic }
+      - { name: OpenAI,       ats: ashby,      token: openai }
+      - { name: Scale AI,     ats: greenhouse, token: scaleai }
+
+# Explicitly not scanned. From the deprioritize quadrant.
+excluded:
+  - reason: HR filters insulate the hiring manager, low IC autonomy
+    categories: [traditional enterprise tech, staffing agencies]
+  - reason: >
+      Cisco absorbed the company in fall 2024 and now posts its roles to
+      jobs.cisco.com, which none of the three readers in src/sources.js
+      support. Verified 2026-08-12: greenhouse/robustintelligence returns 404.
+    companies: [Robust Intelligence]
+  - reason: Credential-gated, cannot be bypassed by portfolio
+    categories: [academic research nonprofits]

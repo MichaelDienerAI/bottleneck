@@ -1,0 +1,115 @@
+# Gate 0. Deterministic. Runs in code, never in a model.
+# Copy to gates.yaml and edit. A job that fails any hard gate never reaches the drum.
+
+drum:
+  packets_per_week: 5          # the constraint. raise only when packet build time drops
+  buffer_max: 10               # max items waiting in front of diagnosis
+  max_per_company: 2           # read by capPerCompany(). stops one large board taking the buffer
+  cycle_starts: monday
+
+compensation:
+  floor_usd: 130000
+  on_missing_data: pass        # most postings omit bands. carry the risk manually
+  reject_if_max_below_floor: true
+
+location:
+  base: Phoenix, AZ            # replace with your city. gates.test.js reads this file.
+  accept_relocation: false     # flip if that changes
+
+  # Work modes. Recorded as intent. NOT read by the gate: locationOk() decides
+  # on the city alone, because almost no posting puts "hybrid" in its location
+  # string and a mode filter would be guessing.
+  accept: [remote, hybrid, onsite]
+
+  # Optional. A time-boxed preference the accept_relocation boolean cannot hold.
+  # Before stay_until, relocation-required rows are flagged with a location cost
+  # for the diagnostician rather than killed.
+  preference:
+    stay_until: YYYY-MM-DD
+    note: >
+      Why relocation is a soft preference now and a firmer answer later.
+
+  # Recognized destinations, matched case-insensitively as substrings against
+  # the posting location. Only consulted when accept_relocation is true. Tier
+  # travels with the row as a flag, so tier 3 is never mistaken for tier 1.
+  # Replace these placeholders. Verify supply before trusting a city: a token no
+  # posting actually writes, like "Bay Area", matches nothing.
+  # Name towns, not regions. A token like "Bay Area" is unreachable because no
+  # posting writes it. Diacritics are stripped before matching, so "Zurich"
+  # finds "Zürich", but a different word like Bengaluru for Bangalore needs its
+  # own entry.
+  hubs:
+    tier_1: [PRIMARY_HUB_A, PRIMARY_HUB_B]
+    tier_2: [SECONDARY_HUB_A, SECONDARY_HUB_B]
+    tier_3: [DARK_HORSE_A, DARK_HORSE_B]
+
+  # Country and region strings, matched against the whole location string.
+  # These pass with a location:country_only flag instead of failing, because a
+  # country name is too vague to rule on. Unresolved flags veto SHIP, so the
+  # diagnostician resolves the city before a packet goes out. List only
+  # countries containing one of your hubs.
+  accept_country_only: [COUNTRY_A, COUNTRY_B, REGION_A]
+
+# Any match kills the row. Case-insensitive substring against title + description.
+hard_disqualifiers:
+  ai_tooling_ban:
+    - "no ai-generated code"
+    - "ai coding assistants are not permitted"
+    - "copilot is prohibited"
+    - "candidates may not use ai tools"
+  credential_gate:
+    - "phd required"
+    - "ph.d. required"
+    - "must hold a doctorate"
+  capability_gap:
+    - "pytorch training loop"
+    - "design loss functions"
+    - "cuda kernel"
+    - "distributed training at scale"
+    - "5+ years c++"
+    - "kernel engineering"
+  clearance:
+    - "active ts/sci"
+    - "security clearance required"
+  wrong_shape:
+    - "unpaid"
+    - "commission only"
+    - "equity only"
+
+# Soft flags. Do not kill the row. Surface them to the diagnostician.
+soft_flags:
+  generalist_trap:              # Gracian aphorism 85. avoid being the wild card
+    - "full stack engineer"
+    - "generalist software engineer"
+    - "ai developer"
+  bureaucracy_signal:
+    - "10,000+ employees"
+    - "requisition"
+    - "band level"
+
+seniority:
+  accept: [senior, staff, lead, principal, founding, "ii", "iii"]
+  reject: [intern, apprentice, "new grad", junior, "entry level"]
+
+# Titles worth spending a slot on. From Section 01, fifteen job families ranked.
+target_titles:
+  - red team
+  - adversarial
+  - model behavior
+  - behavioral evaluation
+  - alignment
+  - trust and safety
+  - evaluation engineer
+  - conversational ai
+  - conversational design
+  - persona
+  - prompt architect
+  - prompt engineer
+  - applied ai
+  - forward deployed
+  - solutions engineer
+  - developer advocate
+  - developer relations
+  - ai product manager
+  - technical writer, ai
+  - agent

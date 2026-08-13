@@ -1,0 +1,6 @@
+node_modules/
+data/*.json
+packets/*/
+!data/.gitkeep
+profile/gates.yaml
+data/cases/

@@ -1,0 +1,103 @@
+# Proof ledger
+# Sovereign = a stranger can inspect it without asking Michael for anything.
+# Speculative = Michael asserts it. Useful as an index, never as the argument.
+# Source: The $130K+ Search, Section 08 (Isocrates) and Section 09 (Toulmin).
+
+sovereign:
+  - id: persona_io
+    name: Persona iO, deployed
+    inspect_at: https://personaio.app
+    what_it_proves: >
+      A live multi-vendor real-time voice pipeline built and shipped solo. Speech
+      recognition, language model, synthesis, and WebRTC avatar closing the loop
+      under 800ms.
+    acts_on_constraints:
+      - conversational latency
+      - multi-vendor pipeline integration
+      - persona coherence in production
+      - solo shipping velocity
+    depends_on: [Anthropic, ElevenLabs, Deepgram, Simli, Supabase, Railway, Vercel]
+
+  - id: aline_backend
+    name: Aline backend source
+    inspect_at: https://github.com/MichaelDienerAI/aline-backend
+    what_it_proves: >
+      Raw Node.js WebSocket backend. Shows sentence-boundary flushing, the
+      ArrayBuffer chunk-view fix that cleared avatar audio static, markdown
+      filtering before synthesis, and roughly 10,000-word behavioral
+      specifications translating psychological constraints into prompt invariants.
+    acts_on_constraints:
+      - streaming audio artifacts
+      - prompt architecture at scale
+      - behavioral invariant enforcement
+      - honest documentation of shipped versus staged
+    note: >
+      The Calibration Layer, seventeen modules, is documented publicly as written
+      and test-exercised but NOT wired into the deployed path. Every artifact must
+      preserve that distinction.
+
+  - id: deformation_test_bank
+    name: Deformation Test Bank
+    inspect_at: TODO_PUBLIC_URL
+    what_it_proves: >
+      A licensed, novel diagnostic methodology isolating relational confabulation
+      in commercial frontier models. Three-phase protocol, Baseline, Pressure,
+      Return, with objective coding rules. Applied to Replika and Character.AI,
+      documenting where personas accept false premises, apologize for things they
+      never said, and invent relational memories.
+    acts_on_constraints:
+      - persona drift under adversarial pressure
+      - sycophancy gradient
+      - companion product churn from broken character
+      - evaluation methodology gaps
+    method_origin: Ainsworth Strange Situation reunion paradigm, transplanted
+
+  - id: test_harness
+    name: Adversarial evaluation harness (test-mra.js)
+    inspect_at: https://github.com/MichaelDienerAI/aline-backend
+    what_it_proves: >
+      A standalone written evaluation harness covering drift, sycophancy,
+      fabricated continuity, dependency-seeking behavior, and conflicts between
+      character consistency and crisis duty of care.
+    acts_on_constraints:
+      - eval harness construction
+      - safety-versus-character conflict resolution
+
+speculative:
+  - id: resume
+    name: Resume, August 2026
+    role: Index into the sovereign proofs. Never the argument.
+  - id: linkedin
+    name: LinkedIn profile and posts
+    role: Narrative positioning and rhetorical range. Self-authored.
+  - id: rlhf_innodata
+    name: Innodata RLHF and safety evaluation, Jun 2024 to Dec 2025
+    role: >
+      Commercial labor. 50 to 300 frontier-model responses evaluated daily against
+      safety, accuracy, helpfulness, and policy rubrics. Strong and verifiable by
+      employment record, but the outputs themselves are under client NDA and cannot
+      be shown. Treat as strong circumstantial, not sovereign.
+  - id: sag_aftra
+    name: Twelve years SAG-AFTRA acting and writing
+    role: Origin of the behavioral-consistency discipline. Verifiable by union record.
+  - id: smu_thesis
+    name: SMU MA Creative Technology, expected Dec 2026
+    role: Academic backing. In progress, so a promise rather than a result.
+
+# Standing overstatements the auditor must catch.
+known_gaps:
+  - claim: Machine learning and model fine-tuning capability
+    reality: >
+      Experience is black-box RLHF evaluation and commercial API orchestration.
+      No public evidence of training loops, loss function design, or fine-tuning.
+    disposition: Do not claim. Disqualify roles requiring it, or close the gap first.
+  - claim: Unassisted production systems engineering
+    reality: >
+      Work is agent-assisted. Michael directs Claude Code while owning requirements,
+      vendor selection, test design, and acceptance.
+    disposition: >
+      State it plainly and target companies that treat agent-native development as
+      an advantage. Disqualify companies that ban AI coding tools.
+  - claim: Calibration Layer is live
+    reality: Written and test-exercised. Not wired into the deployed path.
+    disposition: Always stated as staged, never as shipped.
