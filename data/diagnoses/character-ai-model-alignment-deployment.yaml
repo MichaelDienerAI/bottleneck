@@ -1,0 +1,684 @@
+# Diagnosis — one drum slot, one company.
+# Method: .claude/references/bottleneck-detection.md
+#   Ladder methods used: 3 (aging/public WIP), 4 (refusal boundary), 5 (cause vs
+#   symptom hiring), 6 (specificity leak), 12 (open-role distribution — ATTEMPTED
+#   AND ABANDONED, see gaps). Method 2 (instrumented measurement) NOT run by me;
+#   a third party's equivalent measurement is used instead and labelled as such.
+# hypothesis_source: data/queue.json, key ashby:Character.AI:091a6ad6-75dd-4dd4-9439-7e1e9d13970b
+# time_started: 2026-08-13
+# time_completed: 2026-08-13
+# archetype_match_confidence: high — Character.AI is the canonical consumer
+#   companion-chat product (20M monthly visitors, multi-turn open-ended persona
+#   chat). conversational_ai fits without forcing. No manual routing needed.
+
+company: Character.AI
+role: Technical Program Manager, Model Alignment and Deployment
+url: https://jobs.ashbyhq.com/character/091a6ad6-75dd-4dd4-9439-7e1e9d13970b
+archetype: conversational_ai
+
+dated: '2026-08-13'
+
+constraint_hypothesis:
+  weakest_link: >
+    Character.AI produces no more open-ended chat sessions than its slowest part —
+    pre-deployment behavioral evaluation of multi-turn persona conduct under
+    sustained emotional pressure — allows.
+  binding_part: >
+    Pre-deployment behavioral evaluation of multi-turn persona conduct under
+    emotional pressure. The claim is NOT that no gate exists — I cannot see
+    inside their pipeline and do not assert it. The claim is that whatever gate
+    exists is not catching the dominant failure mode. An independent ACL 2026
+    replication measured a 35.7% harmful-response rate on Character.ai across
+    1,586 dialogue pairs, concentrated in supportive-reinforcement-and-mirroring
+    replies to Risk Intent (60.3%) and Harmful Belief (34.6%), with
+    boundary-keeping emotions near-absent. The one evaluation harness Character.AI
+    has published, judgejudy, scores single generations against a rubric and ships
+    no multi-turn, persona-consistency, safety, or toxicity evaluator.
+  output_capped: >
+    Users eligible for open-ended chat. Countable as user segments served on the
+    open-ended surface: currently one (18+), down from all ages. Character.AI
+    removed open-ended chat for every under-18 user effective no later than
+    2025-11-25 rather than certify the behavior for that segment, and as of 2026
+    the removal stands with age assurance enforcing it.
+  confidence: medium
+
+acquittal: EVIDENCE_SUFFICIENT
+
+evidence:
+  - claim: >
+      Character.AI's only public evaluation harness is character-ai/judgejudy,
+      described by the org itself as "Eval Harness". Created 2026-03-25, last
+      pushed 2026-07-06 (38 days before this reading), MIT licensed, Go, 18 stars,
+      2 forks, 0 open issues, not archived, not a fork. This establishes that the
+      company mechanizes evaluation and publishes when it does — which is why the
+      shape of what it does NOT cover is readable rather than merely absent.
+    inspectable_at: https://api.github.com/repos/character-ai/judgejudy
+    verify_seconds: 8
+    source_class: backstage
+    strength: 5
+
+  - claim: >
+      judgejudy's built-in evaluator set is single-output only. The README lists
+      an AI judge scoring one output against a rubric (pointwise scoring and
+      pairwise comparison) plus reference and reference-free metrics: bertscore,
+      rouge, bleu for text; clip_score, fid, lpips, ssim for image; pesq, stoi,
+      utmos for audio; temporal_consistency, clip_temporal for video. It ships no
+      multi-turn conversation evaluator, no persona-consistency evaluator, and no
+      safety or toxicity evaluator. This is an absence WITHIN one named document a
+      stranger can Ctrl-F, not an absence claim across an org — deliberately
+      scoped that way so it is checkable.
+    inspectable_at: https://raw.githubusercontent.com/character-ai/judgejudy/main/README.md
+    verify_seconds: 20
+    source_class: backstage
+    strength: 4
+
+  - claim: >
+      A third-party instrumented measurement of Character.AI's live product, dated
+      and reproducible: "Persona-Grounded Safety Evaluation of AI Companions in
+      Multi-Turn Conversations" (Juneja and Lomidze, submitted 2026-04-30, ACL
+      2026) replicates its pipeline on Character.ai across 9 personas and 25
+      scenarios, collecting 1,586 dialogue pairs, and reports verbatim: "The
+      overall harmful response rate is 35.7%." Harm concentrates in supportive
+      reinforcement and mirroring responses to Risk Intent (60.3%) and Harmful
+      Belief (34.6%); "Character.ai exhibits a similarly concentrated emotional
+      range (Neutral 46.9%, Caring 15.1%), with boundary-keeping emotions
+      near-absent." NAVIGATION WARNING so a stranger does not conclude I misread:
+      the abstract headlines Replika only; the Character.ai replication sits in
+      Section 7 and Appendix A.7. The measurement post-dates the under-18 removal,
+      so it reads the adult product as currently shipped.
+    inspectable_at: https://arxiv.org/html/2605.00227
+    verify_seconds: 25
+    source_class: backstage
+    strength: 5
+
+  - claim: >
+      The refusal boundary, dated. Character.AI announced on 2025-10-29 that it
+      would remove "the ability for users under 18 to engage in open-ended chat
+      with AI on our platform," effective "no later than November 25." The company
+      withdrew an entire user segment from its core surface. The announcement
+      attributes this to news reports and regulator questions and contains no
+      admission about model behavior, classifier performance, or evaluation
+      limits — the withdrawal itself is the capacity signal, not the prose.
+    inspectable_at: https://blog.character.ai/u18-chat-announcement/
+    verify_seconds: 12
+    source_class: frontstage
+    strength: 3
+
+  - claim: >
+      SPECIFICITY LEAK, labelled as such and front stage by definition. The target
+      posting hands this TPM "Vendor & partner management: Own external partner
+      relationships supporting these workstreams, including general and
+      safety-focused annotation vendors, evaluation tooling providers, and data
+      partners," and separately asks them to "Develop and maintain custom
+      evaluation frameworks." Two details survived review that template language
+      would not: safety evaluation is currently bought as human annotation labor
+      from outside vendors, and the evaluation framework is to be developed rather
+      than operated. The posting also uses the word "bottlenecks" directly
+      ("Identify bottlenecks across teams"). Cited only as corroboration of the
+      backstage rows above; no row in this file rests on the posting alone.
+    inspectable_at: https://jobs.ashbyhq.com/character/091a6ad6-75dd-4dd4-9439-7e1e9d13970b
+    verify_seconds: 15
+    source_class: frontstage
+    strength: 3
+    specificity_leak: true
+
+  - claim: >
+      A second, concurrent Technical Program Manager requisition renders live at
+      Character.AI: "Technical Program Manager, AI Infrastructure," covering
+      programs across training, evaluation, and inference. Two concurrent TPM reqs
+      is method 5 — coordination capacity bought in bodies, which is the most
+      expensive way to buy it and therefore marks where no cheaper mechanism
+      exists. A third TPM req (Product Experience, reported posted 2026-06-30) is
+      reported by search but I could not render it, and it is excluded from this
+      claim.
+    inspectable_at: https://jobs.ashbyhq.com/character/fd023b84-a746-4fe9-8a9d-277899e67a78
+    verify_seconds: 8
+    source_class: frontstage
+    strength: 3
+
+  - claim: >
+      Character.AI is an agent-native engineering shop, which inverts a standing
+      ledger gap rather than tripping it. judgejudy ships a .claude directory in
+      its repository root, and the org's most recently updated repository,
+      character-ai/larch, is described as "Claude configuration and skills"
+      (updated 2026-08-13, the date of this reading). proof-ledger.yaml known_gap
+      2 says Michael's work is agent-assisted and directs him to target companies
+      that treat agent-native development as an advantage. This is one.
+    inspectable_at: https://api.github.com/repos/character-ai/judgejudy/contents/
+    verify_seconds: 8
+    source_class: backstage
+    strength: 4
+
+disconfirming:
+  query_issued: >
+    PRIMARY KILL QUERY, issued after the hypothesis was written: does Character.AI
+    already publish an automated evaluation harness? Killing condition stated in
+    advance — if an active public eval harness covers conversational behavior,
+    then evaluation is already mechanized, the req adds capacity at a
+    non-bottleneck, and P3 applies. Run as an org repository listing sorted by
+    update time (https://github.com/orgs/character-ai/repositories?sort=updated),
+    then followed into the repo metadata and README rather than stopping at the
+    listing.
+    SECOND KILL QUERY: has the constraint since been relieved? "Character.AI 2026
+    restore open-ended chat under 18 teens reinstated age verification." If the
+    under-18 surface came back, the capacity limit was reached and cleared, and a
+    cleared limit is not a constraint.
+    THIRD KILL QUERY: has Character.AI itself published multi-turn safety or
+    persona-consistency evaluation work? "Character.AI research blog safety
+    classifier multi-turn evaluation persona consistency 2026." Their own
+    published multi-turn safety eval would kill the narrowed hypothesis outright.
+  result: >
+    PRIMARY: PARTIALLY FIRED, and the hypothesis is narrowed rather than confirmed.
+    character-ai/judgejudy exists and is real — "Eval Harness," created 2026-03-25,
+    pushed 2026-07-06, MIT, 18 stars. Character.AI does mechanize evaluation. The
+    hypothesis survives ONLY narrowed to multi-turn behavioral evaluation, and that
+    narrowing is carried by the README's own evaluator list, which is single-output
+    throughout and contains no multi-turn, persona, safety, or toxicity evaluator.
+    I record this as a partial kill, not a survival, because the falsifier I wrote
+    in advance was partly satisfied.
+    SECOND: NOTHING that relieves it. The under-18 removal stands into 2026 and is
+    reported as a permanent structural change, with age assurance rolled out in
+    early 2026 and adult users being misflagged and locked out. The segment was not
+    restored. Hypothesis survived.
+    THIRD: NOTHING from Character.AI. No Character.AI-authored multi-turn safety or
+    persona-consistency evaluation is in the public record. The query instead
+    surfaced a third party measuring them (ACL 2026, 35.7% harmful) — which is
+    confirming rather than disconfirming, and is exactly the reading Character.AI
+    did not publish about itself.
+  survived: true
+
+# --- Diagnosis-local from here. Nothing below is part of the evidence payload. ---
+
+relocation_price:
+  flag: 'relocation_cost:prefers Phoenix, AZ until 2026-12-31, price this in the diagnosis'
+  status: RESOLVED WITH A STATED CONDITION — not waved at, priced below.
+  role_location: Redwood City, CA (onsite; no remote option stated in the posting)
+  band: 220000-260000 USD, published
+  recurring_annual_delta_estimate: >
+    State income tax: California at a ~$240K single income lands in the 9.3%
+    marginal bracket for an effective state burden of roughly 7.0-7.5%
+    (~$17-18K). Arizona is a 2.5% flat rate (~$6K). Delta ~$11-12K/yr.
+    Housing: Redwood City one-bedroom market rent ~$3,100/mo against Phoenix
+    ~$1,450/mo, a delta of ~$1,650/mo or ~$19.8K/yr. THIS RENT FIGURE IS AN
+    ESTIMATE, not a cited measurement — see gaps.
+    Total recurring delta ~$31-32K/yr, about 13% of the $240K midpoint.
+    One-time move: ~$5-8K.
+  purchasing_power_read: >
+    The $220K band floor is worth roughly $188K in Phoenix-equivalent terms after
+    the recurring delta. That still clears the search's compensation floor
+    comfortably, so money is NOT what makes this flag bind.
+  what_actually_binds: >
+    Timing, not money. profile/proof-ledger.yaml lists the SMU MA in Creative
+    Technology as expected Dec 2026, and the stay_until preference is 2026-12-31,
+    which is the same event. The req posted 2026-06-01 and is 73 days old; an
+    application filed mid-August 2026 with a normal 4-8 week offer-to-start lands
+    a start date in October or November 2026, inside the thesis window.
+  clearing_condition: >
+    The packet must state availability from on or after 2027-01-05 in its opening,
+    not in a footnote. If Character.AI needs a Q4 2026 start, the row dies on
+    timing regardless of constraint fit. That is a question only they can answer
+    and it should be asked early rather than discovered late.
+
+blocking_flag_audit:
+  # BLOCKING_FLAGS read directly from src/gates.js on 2026-08-13 before any veto.
+  # The array at src/gates.js:155 is: relocation_cost:, country_only:,
+  # remote_unverified:, comp:unknown.
+  'location_tier:tier_1 Redwood City': INFORMATIONAL — never vetoes. Metadata only.
+  'relocation_cost:...': BLOCKING PREFIX, PRESENT. Priced above, cleared on a stated condition.
+  'country_only:': not present — the posting names a city.
+  'remote_unverified:': not present — the posting is not labelled remote.
+  'comp:unknown': not present — a 220000-260000 USD band is published.
+
+proof_match:
+  asset: >
+    deformation_test_bank (Deformation Test Bank) is the asset that actually acts
+    on this constraint. test_harness (test-mra.js) is the closest asset that is
+    currently inspectable.
+  tier: speculative
+  acts_on_constraint: true
+  mechanism: >
+    The Deformation Test Bank is a three-phase protocol — Baseline, Pressure,
+    Return — with objective coding rules, and proof-ledger.yaml records that it has
+    ALREADY been applied to Character.AI, documenting where personas accept false
+    premises, apologize for things they never said, and invent relational memories.
+    That is the same failure class the ACL 2026 replication measured at 35.7%:
+    unqualified emotional alignment, supportive reinforcement and mirroring, and
+    boundary-keeping behavior that never fires. It is the exact evaluator judgejudy
+    does not ship. The match is closer here than at any company yet examined.
+  why_tier_is_speculative_and_not_sovereign: >
+    THIS IS THE WHOLE VERDICT, so it is stated plainly rather than smoothed.
+    proof-ledger.yaml lists deformation_test_bank under `sovereign:` but its
+    inspect_at is the literal string TODO_PUBLIC_URL. By the ledger's own opening
+    definition — "Sovereign = a stranger can inspect it without asking Michael for
+    anything" — it is not sovereign today. A stranger cannot open it. The Deepgram
+    audit flagged this same defect and confirmed it unfixed on 2026-08-13; it is
+    still unfixed. The ledger's label and the ledger's definition disagree, and the
+    definition governs.
+  fallback_asset_assessed: >
+    test_harness IS sovereign and IS inspectable — I confirmed test-mra.js present
+    at the aline-backend repository root on 2026-08-13, 12,335 bytes, at
+    https://github.com/MichaelDienerAI/aline-backend/blob/main/test-mra.js. It
+    covers drift, sycophancy, fabricated continuity, dependency-seeking behavior,
+    and conflicts between character consistency and crisis duty of care — the last
+    of which is precisely the measured Character.AI failure. But per the Deepgram
+    audit's finding, its subject under test is the Calibration Layer, which is
+    written and test-exercised and NOT wired into the deployed path. So the
+    inspectable asset is a hand-run JavaScript harness against a staged subject,
+    and it has never been run against Character.AI. Leading a packet with it
+    against a production failure measured at 35.7% would overstate.
+  known_gaps_respected: >
+    Gap 1 (ML / fine-tuning): LIVE RISK HERE, unlike at Deepgram. The req asks for
+    "Deep familiarity with post-training and alignment concepts (supervised
+    fine-tuning, RLHF, AI safety frameworks, LLM evaluation)." Familiarity is
+    arguable from the Innodata RLHF evaluation work, but that work is speculative
+    tier and NDA-bound, so it may index and never lead. No packet may claim
+    training-loop, DPO, or Constitutional AI implementation capability.
+    Gap 2 (agent-assisted development): INVERTED INTO AN ASSET. Character.AI ships
+    a .claude directory inside judgejudy and its most recently updated repo is
+    Claude configuration and skills. This is the company class the ledger names as
+    a target.
+    Gap 3 (Calibration Layer): must be stated as written and test-exercised, never
+    as wired into the deployed path. This is load-bearing here because test-mra.js
+    is the fallback asset and the Calibration Layer is its subject.
+  honest_shortfall: >
+    Role fit is weaker than constraint fit, and the two must not be blurred. This
+    is a Technical Program Manager requisition asking for 5+ years of technical
+    program management or research operations, proficiency in SQL and Python, and
+    management of external annotation vendors. proof-ledger.yaml evidences none of
+    those three. What Michael holds is the evaluation methodology the program would
+    need, not a record of running programs. A packet that presents a methodology
+    artifact as program-management experience is the overstatement the auditor
+    exists to catch.
+
+decision_maker:
+  name: ''
+  title: >
+    NOT ESTABLISHED for this requisition. The posting carries no reporting line —
+    I read the full description and it names five partner teams (Post-Training,
+    Safety Engineering, Trust & Safety, ML Infra/Model Serving, UXR) and no
+    manager. Two candidate titles exist in aggregator sources and neither is
+    confirmed as the hiring manager: "Head of Post-training and Data (Research)"
+    (RocketReach) and "Head of Trust and Safety" (theorg.com). Both aggregators are
+    crowd-sourced or scraped and may be stale. Recording them as candidates, not as
+    the answer, and guessing between them is exactly the move the project
+    instructions forbid.
+  reachable_via: >
+    The ATS is currently the only established path, and that alone is a PARK
+    condition under the verdict rules. One genuine non-ATS surface exists and is
+    worth more than the ATS: judgejudy is MIT licensed, has CONTRIBUTING.md,
+    permits pull requests, and carries 0 open issues, so a well-formed
+    contribution would be read rather than buried. A PR or issue adding a
+    multi-turn persona-consistency evaluator to judgejudy would reach Character.AI
+    engineering directly AND be the proof at the same time — the diagnosis and the
+    artifact collapsing into one object, which is the whole logistical advantage.
+  source: >
+    Target posting read in full from data/queue.json (no reporting line present);
+    https://theorg.com/org/character-ai/org-chart ; RocketReach management listing
+    surfaced by search. All three are weak and none is a backstage trace.
+
+verdict: PARK
+reason: >
+  The constraint is the most legible I have read so far and it is NOT why this
+  parks. Four independent legs support it: a dated third-party measurement of the
+  live product at a 35.7% harmful-response rate concentrated in sycophantic
+  mirroring; a public eval harness whose own README shows it cannot evaluate that
+  failure mode; the permanent withdrawal of an entire user segment rather than
+  certification of it; and two concurrent TPM requisitions buying coordination and
+  annotation-vendor capacity in bodies.
+  It parks on the proof match, on two counts, either of which alone is sufficient.
+  First, the asset that actually acts on this constraint — the Deformation Test
+  Bank, which has already been run against Character.AI and documents exactly the
+  false-premise acceptance and invented relational memory the ACL paper measured —
+  has inspect_at: TODO_PUBLIC_URL and therefore fails the ledger's own definition
+  of sovereign. A stranger cannot open it, so it cannot lead a packet. The
+  inspectable fallback, test-mra.js, is a hand-run harness against a staged
+  subject and would overstate against a production failure rate.
+  Second, the decision-maker path runs entirely through the ATS with no
+  hiring-manager title established, which the verdict rules name as a PARK
+  condition on its own.
+  This is a high-value park, not a dismissal. One URL converts it. Publishing the
+  Deformation Test Bank makes Character.AI the single best-matched company in the
+  pool, because the Test Bank was already pointed at this exact product and the
+  independent literature now corroborates what it found. Re-take a slot the week
+  that URL exists.
+
+gaps:
+  - >
+    THE UNBLOCK, and the highest-value action in this file: deformation_test_bank
+    in profile/proof-ledger.yaml still carries inspect_at: TODO_PUBLIC_URL,
+    confirmed unfixed on 2026-08-13 and previously flagged by the Deepgram audit.
+    Publishing it at a real URL would settle this verdict and flip it to SHIP. It
+    is worth more here than at any other company in the queue because the protocol
+    has already been applied to Character.AI. Until then the ledger's `sovereign:`
+    label on that entry is a live defect, since the ledger's own definition
+    requires a stranger to be able to inspect it.
+  - >
+    I DID NOT RUN THE MEASUREMENT MYSELF. Method 2 is the top of the ladder and it
+    is unrun here: Character.AI requires an authenticated session, which I cannot
+    reach, so no dated reading of my own exists. Every behavioral number in this
+    file is Juneja and Lomidze's, not Michael's, and is labelled as theirs
+    throughout. A Deformation Test Bank run against the current adult product,
+    dated and coded, would replace a citation with a possession and is the second
+    action that would flip this verdict.
+  - >
+    THE TARGET REQ MAY NOT BE LIVE, and this materially affects whether a packet
+    is worth writing. Its URL renders the title "Technical Program Manager, Model
+    Alignment and Deployment @ Character.AI," but it does NOT appear in the Ashby
+    posting-api board listing for character, which returned 11 postings including
+    a different TPM req. A req reachable by direct link but absent from the public
+    board is consistent with an unlisted or paused requisition. Confirming with a
+    recruiter, or a second board pull on a later date, would settle it. Note the
+    posting is 73 days old as of this reading.
+  - >
+    THE BOARD COUNT IS UNRELIABLE AND I ABANDONED METHOD 12 BECAUSE OF IT. Two
+    fetches of the same Ashby endpoint returned inconsistent enumerations — one
+    listed 10 titles and claimed 11 total omitting both TPM reqs, the other listed
+    11 titles including the AI Infrastructure TPM. WebFetch summarization is
+    dropping rows, the identical failure the Deepgram diagnosis hit. I therefore
+    rest NO claim on role distribution or headcount ratios, and the "5 of 11 in
+    post-training and safety" reading I initially formed is withdrawn as
+    unverified. A shell fetch of
+    https://api.ashbyhq.com/posting-api/job-board/character?includeCompensation=true
+    would settle it.
+  - >
+    The third TPM requisition (Technical Program Manager, Product Experience,
+    reported posted 2026-06-30) is reported by search but I could not render it,
+    so the method 5 claim is written as two concurrent TPM reqs rather than three.
+    A rendering URL would strengthen it.
+  - >
+    THE HIRING MANAGER, both name and title. Only two unconfirmed aggregator
+    candidates exist and the posting has no reporting line. A dated Character.AI
+    engineering blog byline, a conference talk, or a commit authored under a
+    character.ai address on judgejudy would establish a real name and is the
+    cheapest route — judgejudy has only 28 commits, so its contributor list is
+    short enough to read in full.
+  - >
+    THE RENT FIGURE IN relocation_price IS AN ESTIMATE, not a cited measurement.
+    The California and Arizona tax rates are published and checkable; the
+    ~$3,100 vs ~$1,450 one-bedroom comparison is not sourced to a dated index. A
+    Zillow or RentCafe reading for Redwood City and Phoenix on a stated date would
+    firm up the ~$31-32K/yr figure. The conclusion is not sensitive to it: even at
+    half the housing delta the band still clears the floor, and timing rather than
+    money is what binds.
+  - >
+    Three evidence rows exceed the ten-second verification threshold and are
+    flagged rather than smoothed: the judgejudy README row at 20s (16KB file,
+    requires scanning the evaluator list), the ACL paper row at 25s (long HTML,
+    requires finding Section 7 because the abstract headlines Replika only), and
+    the under-18 announcement row at 12s. All three are real and openable; they
+    are simply not ten-second reads. The strength-5 backstage row that carries the
+    file, the judgejudy repository metadata, verifies in 8s.
+  - >
+    Whether judgejudy is Character.AI's production evaluation path or a side
+    project. 28 commits, 0 open issues and a 38-day quiet period are consistent
+    with either a small internal tool published as a courtesy or an actively used
+    harness with private siblings. The README makes no production claim. This
+    matters: if internal multi-turn evaluation exists privately and simply is not
+    working, the constraint is the gate's effectiveness rather than its absence —
+    which is how the binding_part is deliberately worded, but a maintainer
+    statement would sharpen it.
+
+# --- AUDIT. Appended 2026-08-13 by the auditor. Payload per .claude/schemas/audit.json. ---
+
+audit:
+  dated: '2026-08-13'
+  coverage_score: 0.71
+  unanswered_question_numbers: [1, 16, 17, 21, 23, 26, 27, 28]
+  veto_results:
+    q9_link_behind_claim: true
+    q10_verify_under_60s: true
+    q13_source_beyond_posting: true
+    q19_staged_labeled: true
+    q20_agent_assisted_labeled: true
+  auditor_evidence:
+    - claim: >
+        THE ISOLATION ROW. The diagnostician cited the judgejudy repo metadata and
+        its /contents/ listing but never opened its commit history, then named that
+        exact record as the missing one ("a commit authored under a character.ai
+        address on judgejudy would establish a real name and is the cheapest
+        route"). I opened it. The commit history returns a named Character.AI
+        engineer committing under a company address — MaorBril, maor.bril@character.ai
+        — as the primary author of the harness, spanning 2026-03-25 to 2026-07-06.
+        Every commit carries Co-Authored-By trailers to Claude models at
+        noreply@anthropic.com. This is a stronger and cheaper agent-native proof
+        than the .claude-directory row the file uses, and it partially fills the
+        decision_maker gap the file leaves empty: a real name attached to the one
+        artifact Michael would contribute to.
+      inspectable_at: https://api.github.com/repos/character-ai/judgejudy/commits?per_page=100
+      verify_seconds: 12
+      source_class: backstage
+      strength: 5
+    - claim: >
+        Second uncited backstage row. character-ai/larch, which the diagnostician
+        described only by its one-line description read off the org HTML listing,
+        carries 35 open issues against 4 stars, created 2026-03-31, pushed
+        2026-08-13. An internal Claude-configuration repository accumulating 35
+        open issues in four months is a live working surface, not a courtesy
+        publication. This strengthens the file's agent-native claim on evidence the
+        file did not have.
+      inspectable_at: https://api.github.com/repos/character-ai/larch
+      verify_seconds: 9
+      source_class: backstage
+      strength: 4
+    - claim: >
+        I ran the board fetch the file left unrun and got a THIRD inconsistent
+        enumeration: 10 postings, containing NEITHER TPM requisition — not the
+        target 091a6ad6 and not the AI Infrastructure req fd023b84 whose direct URL
+        renders live. Since a req that demonstrably renders is absent from this
+        endpoint, absence from the board does not indicate a paused or dead req. It
+        indicates the endpoint does not enumerate these postings. The file's third
+        gap draws the opposite inference and is struck below.
+      inspectable_at: https://api.ashbyhq.com/posting-api/job-board/character?includeCompensation=true
+      verify_seconds: 18
+      source_class: backstage
+      strength: 4
+  verdict: PASS
+  gaps:
+    - >
+      ISOLATION RULE MET, WITH ONE QUALIFICATION STATED RATHER THAN SMOOTHED. The
+      commits endpoint and the larch repo endpoint are both genuinely uncited by
+      the diagnostician. The third row, the Ashby board API, is a URL the
+      diagnostician printed in its own gaps as an action it did not take. I ran it;
+      they did not. I count it as independent inspection but not as an independent
+      discovery, and it is not what the isolation rule rests on here.
+    - >
+      THE ACL 2026 VENUE IS UNCONFIRMED AND I COULD NOT SETTLE IT EITHER. The arXiv
+      abstract page for 2605.00227 returns cs.CL and a 2026-04-30 submission with no
+      venue and no Comments field surfaced. I cannot prove the paper was NOT
+      accepted to ACL 2026; I can only report that nothing at the cited URL
+      establishes it. The claim is struck as unsupported rather than as false. An
+      ACL 2026 proceedings listing or an author page would settle it.
+    - >
+      THE 28-COMMIT COUNT IS UNVERIFIED. The file says judgejudy has 28 commits. My
+      pull at per_page=100 summarized to 20 commits shown, which is consistent with
+      summarizer row-dropping — the exact failure the file documents elsewhere — and
+      not with a contradiction. I did not confirm or refute 28 and I am not striking
+      it. A shell fetch would settle it.
+    - >
+      I COULD NOT RENDER EITHER ASHBY POSTING BODY. Both URLs returned only the job
+      title through a non-browser fetch. The specificity-leak quotations ("Vendor &
+      partner management...", "Develop and maintain custom evaluation frameworks",
+      "Identify bottlenecks across teams") are therefore unverified BY ME at the
+      cited URL, though the file states it read the description from
+      data/queue.json and a human stranger in a browser would see the rendered
+      description. Not struck, because the file states plainly that no row rests on
+      the posting alone and the constraint claim stands without it. Flagged so the
+      writer does not treat those quotes as auditor-confirmed.
+    - >
+      THE WITHDRAWN "5 OF 11" READING MAY HAVE BEEN WITHDRAWN CORRECTLY BUT
+      CONSERVATIVELY. My own board pull shows 5 of 10 listed reqs in
+      post-training, safety, or ML infrastructure. That is the concentration the
+      file abandoned. I am NOT resurrecting it, because it comes from the same
+      instrument the file correctly distrusted and because method 12 requires a
+      stable enumeration nobody has produced across three attempts. Named here so
+      the withdrawal is recorded as unresolved rather than as refuted.
+    - >
+      WHETHER THE DEFORMATION TEST BANK WAS EVER APPLIED TO CHARACTER.AI IS
+      UNVERIFIABLE BY ANY STRANGER, INCLUDING ME. proof-ledger.yaml asserts it. The
+      ledger is Michael's own file and inspect_at is TODO_PUBLIC_URL. The file's
+      own PARK rests on this and states it plainly, so it is not struck, but the
+      auditor confirms there is no inspectable record of the application and the
+      assertion cannot carry weight in a packet.
+
+strikes:
+  claims_tested: 25
+  claims_struck: 7
+  struck:
+    - claim: >
+        "An independent ACL 2026 replication measured a 35.7% harmful-response
+        rate" — and the two further occurrences, "(Juneja and Lomidze, submitted
+        2026-04-30, ACL 2026)" in the evidence row and "(ACL 2026, 35.7% harmful)"
+        in the disconfirming result.
+      reason: >
+        Prove the claim. The paper resolves and every number in the row is
+        verbatim correct — 35.7%, 60.3%, 34.6%, 46.9%, 15.1%, 1,586 dialogue pairs,
+        Section 7, abstract headlines Replika only. All confirmed. The VENUE is
+        not. The arXiv record shows cs.CL, submitted 2026-04-30, no stated venue.
+        A stranger cannot verify ACL 2026 acceptance at the cited URL in any amount
+        of time. Presenting a preprint with the authority of an accepted ACL paper
+        is the promise running stronger than the evidence, and it is the single
+        most load-bearing citation in the file.
+      rewrite: >
+        An independent arXiv preprint (arXiv:2605.00227v1, Juneja and Lomidze,
+        Seattle University, submitted 2026-04-30, cs.CL; no venue stated on the
+        arXiv record) measured a 35.7% harmful-response rate on Character.ai across
+        1,586 dialogue pairs.
+    - claim: >
+        Evidence row 3, the arXiv measurement, carrying strength 5 and described as
+        "dated and reproducible."
+      reason: >
+        Prove the claim. evidence.json defines strength 5 as "a sovereign backstage
+        trace a stranger can reproduce." A stranger can reproduce reading the
+        paper; a stranger cannot reproduce the measurement, and the file itself
+        says so two hundred lines later ("Character.AI requires an authenticated
+        session, which I cannot reach"). One third party's single run across 9
+        personas and 25 scenarios is strong circumstantial evidence, not a
+        reproducible sovereign trace. Note what I did NOT strike: source_class
+        backstage survives. Under evidence.json, backstage traces are involuntary,
+        and a third-party instrument reading of the live product is exactly what
+        Character.AI does not author, curate, or control. It is not the company's
+        account of itself, which is what R-BACKSTAGE exists to exclude.
+      rewrite: >
+        Same row, strength 4, and "dated and reproducible" replaced with "dated and
+        openable; the measurement itself is not reproducible without an
+        authenticated Character.AI session."
+    - claim: >
+        output_capped: "Character.AI removed open-ended chat for every under-18
+        user effective no later than 2025-11-25 rather than certify the behavior
+        for that segment."
+      reason: >
+        P4 and the causal test. "Rather than certify the behavior" asserts that
+        evaluation incapacity caused the withdrawal. No dated record shows both.
+        The blog post attributes the change to news reports and to regulator,
+        expert, and parent feedback, and affirmatively states the concern holds
+        "even when content controls work perfectly" — which cuts against an
+        evaluation-gap reading rather than for it. The file hedges correctly one
+        row down ("the withdrawal itself is the capacity signal, not the prose")
+        and then states the counterfactual as fact here. Keep the correlation,
+        strike the cause.
+      rewrite: >
+        Character.AI removed open-ended chat for every under-18 user effective no
+        later than 2025-11-25. The company's stated reason is news reports and
+        regulator questions; it makes no statement about evaluation capacity, and
+        no dated record links the removal to evaluation limits. The withdrawal is
+        recorded here as correlated with the constraint, not as caused by it.
+    - claim: >
+        Gap 3: "THE TARGET REQ MAY NOT BE LIVE... it does NOT appear in the Ashby
+        posting-api board listing for character, which returned 11 postings."
+      reason: >
+        Prove the claim, and residue of the abandoned method. This inference is
+        drawn from an enumeration the very next gap declares unreliable because
+        "WebFetch summarization is dropping rows." An absence inference drawn from
+        an instrument whose known failure mode is dropping rows establishes
+        nothing. My own pull returned a third enumeration — 10 postings, neither
+        TPM req present, including the AI Infrastructure req whose direct URL
+        renders live. Absence from that board is now demonstrated NOT to mean
+        not-live. The file's two gaps also contradict each other on the same fetch
+        (11 postings including a TPM req, versus 10 titles omitting both).
+      rewrite: >
+        THE TARGET REQ'S LISTING STATUS IS UNRESOLVED. Three pulls of
+        api.ashbyhq.com/posting-api/job-board/character returned three different
+        enumerations, and the most recent returns neither TPM requisition including
+        one whose direct URL renders live. The endpoint does not reliably enumerate
+        these postings, so absence from it is not evidence of a paused req. Whether
+        the req is live is unknown; a recruiter confirmation would settle it. The
+        posting is 73 days old as of this reading.
+    - claim: >
+        relocation_price: "an effective state burden of roughly 7.0-7.5%
+        (~$17-18K)," "Arizona is a 2.5% flat rate (~$6K)," and "The $220K band
+        floor is worth roughly $188K in Phoenix-equivalent terms."
+      reason: >
+        P2. The rent figure IS correctly self-labeled an estimate in both the body
+        and the gaps — that specific attack fails and the diagnostician is clean on
+        it. The tax figures are not. They carry no link, while gap 7 asserts "The
+        California and Arizona tax rates are published and checkable" — asserting
+        checkability without publishing the check. The $188K figure is then derived
+        to three significant figures on top of an unsourced rent estimate and an
+        unlinked tax rate. The conclusion survives; the precision does not.
+      rewrite: >
+        Link the California FTB and Arizona DOR rate schedules for tax year 2026
+        beside the two rates, and state the recurring delta as a range — roughly
+        $25-35K/yr, dominated by housing — labeling the WHOLE delta an estimate
+        rather than only the rent line. Replace "$188K in Phoenix-equivalent terms"
+        with "the band floor clears the compensation floor even at half the assumed
+        housing delta," which is the only load-bearing part of the calculation.
+    - claim: >
+        "The match is closer here than at any company yet examined," and
+        "Publishing the Deformation Test Bank makes Character.AI the single
+        best-matched company in the pool."
+      reason: >
+        Prove the claim. A comparative superlative over a set the reader cannot
+        inspect. A stranger cannot open the pool, cannot see the other diagnoses,
+        and cannot check the ranking. It is self-assessment in the voice of a
+        finding, and it is the kind of sentence that sounds like writing.
+      rewrite: >
+        The Deformation Test Bank has already been applied to Character.AI's
+        product and targets the exact failure class the arXiv preprint measured and
+        the exact evaluator judgejudy does not ship. Cite the compared diagnoses by
+        file path with their proof_match tiers, or drop the ranking.
+    - claim: >
+        Header comment: Character.AI as "the canonical consumer companion-chat
+        product (20M monthly visitors, multi-turn open-ended persona chat)."
+      reason: >
+        P2. An unsourced quantitative claim stated as fact. No link, no date, no
+        measurement named. A header comment is still artifact text and 20M is still
+        a number a stranger would have to take on faith.
+      rewrite: >
+        Drop the figure, or cite it to a dated traffic source. The archetype match
+        does not need it — "multi-turn open-ended persona chat" carries the routing
+        decision on its own.
+    - claim: >
+        NOT STRUCK, RECORDED BECAUSE IT WAS ATTACKED AND SURVIVED: proof_match
+        tier: speculative for the Deformation Test Bank.
+      reason: >
+        Verified against profile/proof-ledger.yaml directly. The entry sits under
+        `sovereign:` at line 39 with inspect_at: TODO_PUBLIC_URL at line 41, and
+        line 2 defines "Sovereign = a stranger can inspect it without asking
+        Michael for anything." The label and the definition genuinely disagree and
+        the definition genuinely governs. Reporting tier: speculative against the
+        ledger's own heading is the correct call and the honest one. The same
+        verification confirms the Calibration Layer is labeled staged in exact
+        conformance with known_gaps 3, and agent-assisted work is labeled in exact
+        conformance with known_gaps 2. Both vetoes pass on the merits, not on
+        formula.
+      rewrite: null
+    - claim: >
+        NOT STRUCK, RECORDED AS A COVERAGE DEFECT ONLY: no vendor dependency of
+        Michael's own is named anywhere in this file (question 21).
+      reason: >
+        What do we control. The file names Character.AI's vendor dependency — the
+        posting's annotation vendors and evaluation tooling providers — and names
+        none of Michael's. This matters beyond bookkeeping because the file's own
+        proposed unblock, "a Deformation Test Bank run against the current adult
+        product," depends on access the file elsewhere documents as tightening:
+        Character.AI requires an authenticated session, and the file reports adult
+        users being misflagged and locked out by age assurance. The second action
+        that would flip this verdict is gated by the target company's access
+        controls, and that is not stated.
+      rewrite: >
+        In the gap naming the unrun measurement, add: this run depends on
+        Character.AI account access under their terms, which the same file reports
+        is tightening under age assurance. It is not unilaterally available. Where
+        packet assets touch the deployed pipeline, name the vendor chain from
+        proof-ledger.yaml (Anthropic, ElevenLabs, Deepgram, Simli) rather than
+        presenting pipeline capability as wholly owned.
