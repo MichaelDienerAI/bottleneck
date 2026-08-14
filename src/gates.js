@@ -33,6 +33,34 @@ const has = (hay, needle) => hay.includes(needle.toLowerCase());
 // signal, and Gate 0 exists to protect the drum, not to be exhaustive. Revisit
 // only with a kill-log audit showing the missed class is large enough to pay
 // for the noise.
+// Default staleness limit in days, overridable with freshness.max_age_days in
+// gates.yaml. Set the config value to 0 to turn the rule off entirely.
+export const MAX_AGE_DAYS = 90;
+
+// Posting dates arrive in two shapes and both have to parse: a bare `2026-08-01`
+// from a test or a hand-written fixture, and a full ISO timestamp from the
+// boards. asDate() below cannot be reused for this — it appends `T00:00:00Z`
+// unconditionally, which turns a full timestamp into Invalid Date, and every
+// comparison against Invalid Date is false, which is how the relocation_cost
+// flag silently never fired before 2026-08-12. Same defect, one field over.
+function postedDate(v) {
+  if (!v) return null;
+  if (v instanceof Date) return Number.isNaN(v.getTime()) ? null : v;
+  const s = String(v).trim();
+  if (!s) return null;
+  const d = /^\d{4}-\d{2}-\d{2}$/.test(s) ? new Date(`${s}T00:00:00Z`) : new Date(s);
+  return Number.isNaN(d.getTime()) ? null : d;
+}
+
+// Whole days since the posting date. null means the board published no usable
+// date, which is a missing record and not an age of zero. Future dates return a
+// negative age and are never stale.
+export function ageInDays(posted, now = new Date()) {
+  const d = postedDate(posted);
+  if (!d) return null;
+  return Math.floor((now.getTime() - d.getTime()) / 86400000);
+}
+
 export function gate0(job, cfg, now = new Date()) {
   const hay = `${job.title} ${job.description}`.toLowerCase(); // title + body
   const title = job.title.toLowerCase(); // title ONLY — see note above
@@ -69,6 +97,46 @@ export function gate0(job, cfg, now = new Date()) {
     reasons.push('comp:no band published');
   } else {
     flags.push('comp:unknown, verify before spending a slot');
+  }
+
+  // 6. Freshness. A requisition that has sat untouched for months is inventory
+  // on the employer's side of the transaction, and a packet aimed at it lands on
+  // a req that is filled, frozen, or forgotten. The date is the only age evidence
+  // the boards publish, so it is the only one this gate rules on.
+  //
+  // WHAT `posted` ACTUALLY MEANS, because it is not the same fact per source and
+  // the gate treats all three identically:
+  //   greenhouse  updated_at   last edit of any kind, so this reads "untouched for N days"
+  //   lever       createdAt    true first-publication date
+  //   ashby       publishedAt  true publication date
+  // Greenhouse is therefore the loosest of the three: a recruiter re-saving a
+  // year-old req resets its clock. That is a false negative the gate accepts. It
+  // does not produce false positives, which is what would cost a slot.
+  //
+  // Measured against the live boards 2026-08-13, 3,479 rows fetched: age p50 22
+  // days, p75 83, p90 202, max 1,303. At a 90-day limit the gate-0 pool drops
+  // from 425 rows to 254. That is 171 rows and it is meant to be that many —
+  // among them ElevenLabs "Deployment Strategist - North America" at 392 days,
+  // which had been sitting in the candidate pool eligible for a slot. Ashby
+  // carries almost all of it (789 stale rows of 2,357); greenhouse shows 22 of
+  // 1,114, which is the updated_at semantics above, not a fresher employer.
+  //
+  // Every one of those 3,479 rows carried a parseable date, so the posted:unknown
+  // branch below is currently unexercised in production. It exists because a
+  // board that stops publishing dates must not silently become a board with no
+  // freshness gate.
+  const maxAgeDays = cfg.freshness?.max_age_days ?? MAX_AGE_DAYS;
+  const age = ageInDays(job.posted, now);
+  if (age === null) {
+    // P5: name the missing record rather than guessing at the age. Blocking, so
+    // the diagnostician confirms the req is open before a slot is spent on it.
+    flags.push(
+      `posted:unknown, ${job.source || 'the board'} published no date, age unverifiable`
+    );
+  } else if (maxAgeDays && age > maxAgeDays) {
+    reasons.push(
+      `stale:posted ${String(job.posted).slice(0, 10)}, ${age} days old, limit ${maxAgeDays}`
+    );
   }
 
   // Soft flags travel with the row. They inform the diagnostician, they do not kill.
@@ -157,7 +225,15 @@ export const BLOCKING_FLAGS = [
   'country_only:', // no city named yet
   'remote_unverified:', // remote label with an office signal attached
   'comp:unknown', // no published band
+  'posted:unknown', // no date published, so the freshness gate could not rule
 ];
+
+// Blocking flags that do NOT cost a fit point. Both name something the BOARD
+// failed to publish, not something about the role, so charging fit for them
+// would sort against whole ATS sources at once. comp:unknown is also already
+// priced at zero by the comp term, and charging it twice would make a missing
+// band a two-point swing against a token range of about one to three.
+const FIT_EXEMPT_FLAGS = ['comp:unknown', 'posted:unknown'];
 
 export function blockingFlags(flags = []) {
   return flags.filter((f) => BLOCKING_FLAGS.some((p) => String(f).startsWith(p)));
@@ -266,10 +342,12 @@ function locationFlags(loc, cfg, now) {
 // rows and can NEVER sort the buffer by salary. Fit is whether a sovereign proof
 // acts on the role; a high band on the wrong work is still the wrong work.
 //
-// comp:unknown is excluded from the penalty. The comp term already prices a
-// missing band at zero, and charging it twice would make compensation a
-// two-point swing against a token range of about one to three. That is the
-// miscalibration this function exists to avoid.
+// FIT_EXEMPT_FLAGS are excluded from the penalty: comp:unknown, because the
+// comp term already prices a missing band at zero and charging it twice would
+// make compensation a two-point swing against a token range of about one to
+// three; posted:unknown, because a board that omits dates omits them for every
+// row it publishes, so the penalty would reorder the buffer by ATS vendor rather
+// than by fit. Both are still blocking, so neither can ship unresolved.
 export function fitScore(job, cfg) {
   const title = String(job.title || '').toLowerCase();
 
@@ -286,7 +364,7 @@ export function fitScore(job, cfg) {
   const compBonus = ceiling && ceiling > floor ? 1 : 0;
 
   const penalty = blockingFlags(job.flags || []).filter(
-    (f) => !String(f).startsWith('comp:unknown')
+    (f) => !FIT_EXEMPT_FLAGS.some((p) => String(f).startsWith(p))
   ).length;
 
   return best + compBonus - penalty;

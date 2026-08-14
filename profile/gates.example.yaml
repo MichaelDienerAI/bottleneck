@@ -7,6 +7,15 @@ drum:
   max_per_company: 2           # read by capPerCompany(). stops one large board taking the buffer
   cycle_starts: monday
 
+# Staleness. A requisition older than the limit is killed at Gate 0. The date
+# read is whatever the board publishes: created/published for lever and ashby,
+# last-updated for greenhouse. Set max_age_days to 0 to turn the rule off.
+# A posting with no date passes carrying a blocking posted:unknown flag, because
+# a missing record is a missing record and never an age of zero.
+freshness:
+  max_age_days: 90
+  verify_queue_urls: true      # HTTP-check the buffer rows each scan. 404/410 delists
+
 compensation:
   floor_usd: 130000
   on_missing_data: pass        # most postings omit bands. carry the risk manually

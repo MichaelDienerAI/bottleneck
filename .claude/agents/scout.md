@@ -14,6 +14,7 @@ You are the sourcing stage. You are explicitly a non-bottleneck, and your job is
 3. Run `node src/scan.js`. It fetches every board in `profile/companies.yaml`, dedupes against `data/seen.json`, and applies Gate 0.
 4. Read `data/candidates.json`. Promote at most `slots + 5` rows to `data/queue.json`, ranked by archetype allocation weight, then by posting recency.
 5. Report a table: company, title, archetype, comp signal, gate-0 result, promoted or held.
+6. Report the two liveness numbers the scan prints: how many rows died on staleness, and how many buffer rows were delisted because their posting came off the board. Read `data/delisted.json` and name the delisted rows. A row leaving the buffer is a finding — it means a slot was about to be spent on a closed req.
 
 ## Ranking
 

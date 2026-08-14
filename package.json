@@ -14,7 +14,7 @@
     "report": "node src/ledger.js --report",
     "board": "node src/report.js",
     "brief": "node src/renderBrief.js",
-    "test": "node src/gates.test.js && node test/schema.test.js && node test/automation.test.js",
+    "test": "node src/gates.test.js && node test/schema.test.js && node test/automation.test.js && node test/liveness.test.js",
     "walk": "node src/walkthrough.js"
   },
   "dependencies": {

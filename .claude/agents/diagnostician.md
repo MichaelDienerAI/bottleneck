@@ -156,7 +156,7 @@ than a grade: it counts syllables and cannot tell you whether a sentence is clea
 
 - **SHIP** requires: a binding part named in the Weakest Link formula, `acquittal: EVIDENCE_SUFFICIENT`, at least one `source_class: backstage` row at `strength: 5` with `verify_seconds` under 10, a `disconfirming` object carrying all three fields, a sovereign-tier proof match with `acts_on_constraint: true`, a decision-maker title identified even if the name is not yet found, and no unresolved **blocking** Gate 0 flags. Each of these is a checkpoint with its own veto. None can be outvoted by the others being strong. A `strength: 5` on a frontstage row is not a substitute; the rule reads `source_class` first.
 
-  **Blocking is a defined set, not "any flag."** The authoritative list is `BLOCKING_FLAGS` in `src/gates.js`. Open that file and read the array before you veto anything, every run, rather than trusting the table below or your memory of it. Verified against `src/gates.js:155` on 2026-08-13:
+  **Blocking is a defined set, not "any flag."** The authoritative list is `BLOCKING_FLAGS` in `src/gates.js`. Open that file and read the array before you veto anything, every run, rather than trusting the table below or your memory of it. Verified against `src/gates.js:223` on 2026-08-13:
 
   | Flag prefix | Blocks because |
   | --- | --- |
@@ -164,8 +164,9 @@ than a grade: it counts syllables and cannot tell you whether a sentence is clea
   | `country_only:` | the posting names a country or state but no city |
   | `remote_unverified:` | a remote label carries an office or travel expectation |
   | `comp:unknown` | no published band, so the floor is unconfirmed |
+  | `posted:unknown` | the board published no date, so the freshness gate could not rule and the req may be a year old |
 
-  A flag blocks only if it starts with one of those four prefixes, which is what `blockingFlags()` in the same file actually tests. Every other flag is **informational and never vetoes**. In particular **`location_tier:` NEVER vetoes**: it is metadata recording which tier a hub sits in so the row can be read at a glance. Nothing about a London role requires a human decision, and treating the tag as a veto made the veto fire on 91% of rows, which is the same as not having one. If you find yourself blocked by a flag not in the table above, the flag is not the problem and you should ship.
+  A flag blocks only if it starts with one of those five prefixes, which is what `blockingFlags()` in the same file actually tests. Every other flag is **informational and never vetoes**. In particular **`location_tier:` NEVER vetoes**: it is metadata recording which tier a hub sits in so the row can be read at a glance. Nothing about a London role requires a human decision, and treating the tag as a veto made the veto fire on 91% of rows, which is the same as not having one. If you find yourself blocked by a flag not in the table above, the flag is not the problem and you should ship.
 - **PARK** means the constraint is legible but no sovereign proof acts on it, or the decision-maker path runs entirely through an ATS. Park is common and correct.
 - **REJECT** means the hypothesis failed the evidence test, or the only matching proofs are speculative.
 

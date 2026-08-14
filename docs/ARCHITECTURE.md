@@ -68,7 +68,7 @@ That single chain determines every design decision below. When a decision looks 
 
 **Scout.** Reads published job feeds from Greenhouse, Lever, and Ashby. Deterministic, cheap, and deliberately dumb. It checks the ledger before it fetches anything, and when the week's slots are gone it fetches nothing.
 
-**Gate 0.** Fixed rules in code. Pay floor, location, seniority, target title family, and hard dealbreakers such as a ban on AI coding tools or a requirement for training-loop experience. Each rule holds its own veto. No rule can be outvoted by the others passing.
+**Gate 0.** Fixed rules in code. Pay floor, location, seniority, target title family, posting age, and hard dealbreakers such as a ban on AI coding tools or a requirement for training-loop experience. A posting older than ninety days is killed here: it is the largest single kill class on these boards, and a req nobody has touched since spring is inventory on the employer's side. Each rule holds its own veto. No rule can be outvoted by the others passing.
 
 **Case file.** One JSON per company, persisting across weeks. Holds every prior visit, every hypothesis already killed, every claim already struck, every search already run, and a revisit date. This is the newest component and section 7 explains why it exists.
 
@@ -168,7 +168,7 @@ Constraint diagnosis can fabricate. A model handed a company name and no observa
 
 Euclid separates making something from showing it works. This section keeps them apart, because collapsing them is the most common failure in technical documentation and I would rather label my own gap than have a reader find it.
 
-**Constructed and running.** The board fetchers, Gate 0 with sixty-eight passing tests, the ledger with drum accounting and the RAND readout, the case file with lifecycle tests, the token verifier, the agent and command definitions, the two reference documents.
+**Constructed and running.** The board fetchers, Gate 0 with eighty-one passing tests, the ledger with drum accounting and the RAND readout, the case file with lifecycle tests, the token verifier, the agent and command definitions, the two reference documents.
 
 **Constructed but not yet exercised on real data.** The full diagnose-to-ship path. No company has been diagnosed. No packet has been written. No row has entered the ledger from an actual send.
 

@@ -48,7 +48,7 @@ Run these in a terminal:
 | `npm run walk` | Rebuilds `data/walkthrough.html` |
 | `npm run brief <company>` | Renders a diagnosis, or a packet directory, to one self-contained HTML page. Add `--pdf` for a PDF via system Chrome. Reports the clearance state it found and gates nothing |
 | `npm run verify` | Checks every board token in `profile/companies.yaml`. Writes `data/token-verification.json` |
-| `npm test` | Three suites, 116 assertions, no network. Run before you trust anything |
+| `npm test` | Four suites, 139 assertions, no network. Run before you trust anything |
 | `./bin/run.sh` | Runs the whole scheduled job by hand, exactly as launchd runs it |
 
 ## The pipeline, end to end
@@ -275,6 +275,8 @@ Then you send it. Every time.
 | `data/queue.json` | Promoted candidates waiting for a slot | Scout |
 | `data/candidates.json` | Everything that survived Gate 0 | `scan.js` |
 | `data/killed.json` | What died at Gate 0, with the reason | `scan.js` |
+| `data/delisted.json` | Buffer rows whose posting came off the board, dated | `scan.js` |
+| `data/liveness.json` | HTTP status of each buffer row's posting URL | `scan.js` |
 | `data/seen.json` | Dedupe set across cycles | `scan.js` |
 | `data/board.html` | The page you open on Monday | `report.js` |
 | `data/briefs/<date>.md` | Raw observables, no diagnosis | Brief agent |
@@ -444,10 +446,11 @@ What the answer means at twenty:
 npm test
 ```
 
-Three suites, no network, no model:
+Four suites, no network, no model:
 
-- `src/gates.test.js` — 68 assertions on Gate 0.
+- `src/gates.test.js` — 81 assertions on Gate 0, thirteen of them on the freshness rule.
 - `test/schema.test.js` — 41 on both payload schemas and the six named rules.
+- `test/liveness.test.js` — 10 on delisting and the posting-URL check, with an injected fetch so no test touches a real board.
 - `test/automation.test.js` — 7 on `bin/run.sh` and the week boundary, against a fixture repository under a temporary `HOME`. It copies the real `run.sh` and `ledger.js` rather than paraphrasing them, drives half two through `CLAUDE_BIN`, and never invokes the real CLI or the network. The last two run `ledger.js` in child processes with `TZ` set, because `weekStart` once shifted the week after 5pm in zones behind UTC and quietly reset the drum.
 
 If `npm test` fails, fix it before opening Claude Code. Gate 0 decides everything the drum ever sees.

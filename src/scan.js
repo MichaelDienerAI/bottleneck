@@ -9,9 +9,10 @@ import fs from 'node:fs';
 import path from 'node:path';
 import yaml from 'js-yaml';
 import { fetchBoard } from './sources.js';
-import { gate0, rank, capPerCompany, fitScore, archetypeFloor, compositeScore } from './gates.js';
+import { gate0, rank, capPerCompany, fitScore, archetypeFloor, compositeScore, MAX_AGE_DAYS } from './gates.js';
 import { openSlots } from './ledger.js';
 import { shouldSkip } from './casefile.js';
+import { delisted, unverifiable, checkUrls } from './liveness.js';
 
 const ROOT = path.resolve(import.meta.dirname, '..');
 const read = (p) => yaml.load(fs.readFileSync(path.join(ROOT, p), 'utf8'));
@@ -101,6 +102,10 @@ async function main() {
       });
   }
 
+  // Reported separately because it is the largest single kill class on these
+  // boards and a 40% drop in the pool should never look like a fetch problem.
+  const staleKills = killed.filter((k) => k.reasons.some((r) => r.startsWith('stale:')));
+
   // Full current-board snapshot, for the board and the kill audit.
   const ranked = rank(gated, weights, cfg);
 
@@ -130,18 +135,74 @@ async function main() {
   const promote = rank(archetypeFloor(capped, room), weights, cfg);
   for (const j of promote) j.score = Number(compositeScore(j, weights, cfg).toFixed(2));
 
+  // Local date, not toISOString(). A run at 23:04 in Phoenix is 06:04 UTC the
+  // next day, and a board stamped tomorrow is a board nobody trusts.
+  const d = new Date();
+  const today = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+
+  // Liveness. The buffer used to be append-only: `[...existingQueue, ...promote]`
+  // with no exit except promotion off the top. A req that came down the day after
+  // it was promoted stayed in front of the drum indefinitely and looked identical
+  // to a live one, because nothing ever re-checked it. Gate 0 could not catch it
+  // either — the row is fresh, it is just closed.
+  //
+  // The check is feed membership, and it costs nothing because every board was
+  // already fetched above. A company whose fetch FAILED this run is excluded:
+  // an empty result from a 500 is not evidence that a company closed its reqs.
+  const liveKeys = new Set(all.map((j) => j.key));
+  const failedCompanies = new Set(errors.map((e) => e.company));
+  const verifiable = new Set(targets.map((t) => t.name).filter((n) => !failedCompanies.has(n)));
+
   const existingQueue = loadJson('data/queue.json', []);
-  const queue = [...existingQueue, ...promote].slice(0, bufferMax);
+  const gone = delisted(existingQueue, liveKeys, verifiable).map((r) => ({
+    ...r,
+    delisted_at: today,
+    delisted_reason: `absent from the ${r.source} board feed on ${today}`,
+  }));
+  const goneKeys = new Set(gone.map((r) => r.key));
+  const held = existingQueue.filter((r) => !goneKeys.has(r.key));
+
+  // Rows whose board did not answer keep their previous confirmation date rather
+  // than being re-stamped by a run that confirmed nothing about them.
+  const unconfirmed = unverifiable(held, verifiable);
+  const stamp = (r) =>
+    verifiable.has(r.company) && liveKeys.has(r.key)
+      ? { ...r, verified_live_at: today, verified_via: `${r.source} board api` }
+      : r;
+
+  let queue = [...held, ...promote].map(stamp).slice(0, bufferMax);
+
+  // Second, weaker check: HTTP status on the buffer rows only, ten requests at
+  // most. Only 404/410 removes a row — see the note at the top of liveness.js on
+  // why a 200 is not evidence the req is open. A removed row is not backfilled
+  // from the rows that missed the slice; the next scan refills the buffer, and
+  // silently promoting an unchecked row in a dead row's place would defeat the
+  // point of having checked.
+  let urlChecks = [];
+  if (cfg.freshness?.verify_queue_urls !== false && queue.length) {
+    urlChecks = (await checkUrls(queue)).map((c) => ({ ...c, checked_at: today }));
+    const byKey = new Map(urlChecks.map((c) => [c.key, c]));
+    const dead = queue.filter((r) => byKey.get(r.key)?.verdict === 'gone');
+    for (const r of dead) {
+      gone.push({
+        ...r,
+        delisted_at: today,
+        delisted_reason: `posting url returned HTTP ${byKey.get(r.key).status} on ${today}`,
+      });
+      goneKeys.add(r.key);
+    }
+    queue = queue
+      .filter((r) => !goneKeys.has(r.key))
+      .map((r) => {
+        const c = byKey.get(r.key);
+        return c ? { ...r, url_check: { verdict: c.verdict, status: c.status, at: today } } : r;
+      });
+  }
 
   // The snapshot is now always current, so there is nothing to preserve and no
   // stale-data warning to raise. What is still worth recording is whether the
   // boards moved: "nothing new since Friday" is real information, it just is not
   // a reason to distrust the counts.
-  //
-  // Local date, not toISOString(). A run at 23:04 in Phoenix is 06:04 UTC the
-  // next day, and a board stamped tomorrow is a board nobody trusts.
-  const d = new Date();
-  const today = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
   const prevMeta = loadJson('data/scan-meta.json', {});
   const meta = {
     last_run_at: today,
@@ -150,9 +211,19 @@ async function main() {
     fetched: all.length,
     passed: ranked.length,
     killed: killed.length,
+    stale: staleKills.length,
+    delisted: gone.length,
+    unconfirmed: unconfirmed.length,
   };
 
+  // Delisted rows accumulate rather than being overwritten: "this req was open
+  // on the 4th and gone by the 13th" is the dated record that makes a delisting
+  // inspectable later, and a file that only holds the last run cannot show it.
+  const delistedLog = [...loadJson('data/delisted.json', []), ...gone].slice(-200);
+
   writeJson('data/candidates.json', ranked);
+  writeJson('data/delisted.json', delistedLog);
+  writeJson('data/liveness.json', urlChecks);
   writeJson('data/killed.json', killed);
   writeJson('data/skipped-cases.json', skipped);
   writeJson('data/queue.json', queue);
@@ -165,6 +236,10 @@ async function main() {
   console.log(`new          ${fresh.length}   (new rows feed the queue; the counts below are the whole board)`);
   console.log(`passed gate0 ${gated.length}`);
   console.log(`killed       ${killed.length}   see data/killed.json`);
+  console.log(`  of which stale  ${staleKills.length} older than ${cfg.freshness?.max_age_days ?? MAX_AGE_DAYS} days`);
+  console.log(`delisted     ${gone.length}   dropped from the buffer, see data/delisted.json`);
+  if (unconfirmed.length)
+    console.log(`unconfirmed  ${unconfirmed.length}   buffer rows whose board did not answer this run`);
   console.log(`closed cases ${skipped.length}   see data/skipped-cases.json`);
   console.log(`company cap  ${crowdedOut} rows held back at ${perCompanyMax}/company`);
   console.log(`promoted     ${promote.length}  buffer now ${queue.length}/${bufferMax}`);

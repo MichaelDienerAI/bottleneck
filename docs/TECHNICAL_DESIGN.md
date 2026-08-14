@@ -38,7 +38,8 @@ src/
   ledger.js                   drum accounting, tracking, RAND readout
   verify.js                   board token checker
   renderBrief.js              diagnosis or packet to one self-contained HTML page
-  gates.test.js               68 assertions, no network
+  liveness.js                 delisting and posting-url checks
+  gates.test.js               81 assertions, no network
 data/                         generated, gitignored
 packets/                      generated, gitignored
 ```
@@ -86,13 +87,16 @@ gate0(job, cfg) → { pass, reasons[], flags[], comp }
 rank(jobs, archetypeWeights) → jobs[]
 ```
 
-Five checks run, each appending to `reasons` on failure:
+Six checks run, each appending to `reasons` on failure:
 
 1. Seniority. Reject list matched against the title.
 2. Title family. At least one target family must appear in the title.
 3. Hard disqualifiers. Grouped phrase lists matched against title plus description.
 4. Location. Remote, Phoenix, or relocation enabled. Absent location passes, since missing data is not bad data.
 5. Compensation. A published maximum below the floor fails. Absent band flags rather than fails.
+6. Freshness. A posting older than `freshness.max_age_days`, default 90, fails. Absent date flags rather than fails.
+
+The freshness rule reads whatever date the board publishes, and that is not the same fact across sources: `createdAt` for lever and `publishedAt` for ashby are true publication dates, while greenhouse sends `updated_at`, which any edit resets. Greenhouse is therefore the loosest of the three. Measured on 3,479 live rows on 2026-08-13, age ran p50 22 days, p75 83, p90 202, max 1,303, and the rule cut the passing pool from 425 rows to 254.
 
 ```js
 pass = reasons.length === 0
@@ -100,9 +104,21 @@ pass = reasons.length === 0
 
 That single line is the architectural commitment. No weighted total, no threshold, no averaging. One failed check fails the row regardless of how strong everything else looks. Any change that introduces an aggregate score here converts the obstacle course into an assembly line and should be rejected in review.
 
-`flags` travel forward instead of killing. A `comp:unknown` flag must be resolved before SHIP, and a `generalist_trap` flag warns the diagnostician that the role may be a wild-card posting.
+`flags` travel forward instead of killing. A `comp:unknown` or `posted:unknown` flag must be resolved before SHIP, and a `generalist_trap` flag warns the diagnostician that the role may be a wild-card posting. Neither of the two `unknown` flags costs a fit point: both name something the board failed to publish rather than something about the role, so charging fit for them would reorder the buffer by ATS vendor.
 
 `rank` sorts by archetype allocation weight, then by recency. Prestige contributes nothing and there is no field for it.
+
+---
+
+## 4a. Liveness
+
+Gate 0 catches a requisition that is old. It cannot catch one that is recent and already closed, and it cannot catch a buffer row that has come down since the scan that promoted it. `liveness.js` handles those, and it grades its two signals differently.
+
+**Feed membership is authoritative.** The ATS endpoints publish open requisitions and nothing else, so a key that was in the buffer and is absent from this run's fetch has been taken down. It costs no extra request, because the scan already fetched every board. A company whose fetch failed this run is excluded from the comparison: an empty result from a 500 is not evidence that a company closed its reqs, and without that guard one bad afternoon would empty a company's rows out of the buffer.
+
+**The posting-URL check is weak and is treated as weak.** An HTTP 200 proves the link resolves, not that the role is open — greenhouse serves a closed job as a 200 redirect to the board index, ashby as a 200 client-rendered shell. Only 404 and 410 remove a row. Every other status is recorded with its code and left for a human. Nothing reads the page body; inferring "closed" from HTML text would be pattern matching on absent data and calling the guess a gate. The check runs over the buffer only, ten requests at most, since the free signal above already covers the full board.
+
+Removed rows are appended to `data/delisted.json` with the date and the reason, because "open on the 4th, gone by the 13th" is the dated record that makes a delisting inspectable later. Surviving buffer rows carry `verified_live_at`, `verified_via`, and `url_check`.
 
 ---
 
@@ -271,11 +287,11 @@ The loop never lets the producing agent certify its own completion. SHIP is a ch
 
 ## 9. Testing
 
-`npm test` runs three suites in order, 116 assertions, no network and no model in any of them.
+`npm test` runs four suites in order, 139 assertions, no network and no model in any of them.
 
 | Suite | Assertions | Covers |
 |---|---|---|
-| `src/gates.test.js` | 68 | Title family matching, seniority rejection, each disqualifier group, location logic, published and free-text compensation, flag-not-fail behavior on missing data, blocking-versus-informational flags, per-company caps, and weight-based ranking |
+| `src/gates.test.js` | 81 | Title family matching, seniority rejection, each disqualifier group, location logic, published and free-text compensation, flag-not-fail behavior on missing data, blocking-versus-informational flags, per-company caps, and weight-based ranking |
 | `test/schema.test.js` | 41 | Both payload schemas and the four rules JSON Schema cannot express: R-BACKSTAGE, R-ACQUITTAL, R-VETO, R-THRESHOLD, R-COVERAGE-CONSISTENT, R-AUDITOR-BACKSTAGE |
 | `test/automation.test.js` | 7 | `bin/run.sh` orchestration against a fixture repo under a temporary `HOME`: a clean run, a full drum, a missing CLI, a missing brief agent, and a corrupted or non-integer ledger. Plus the week boundary: `weekStart` and `openSlots` run in child processes with `TZ` set, at hours that straddle the UTC date line in zones on both sides of it |
 

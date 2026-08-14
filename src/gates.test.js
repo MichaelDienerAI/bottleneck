@@ -5,10 +5,16 @@ import fs from 'node:fs';
 import path from 'node:path';
 import yaml from 'js-yaml';
 import assert from 'node:assert';
-import { gate0, rank, capPerCompany, blockingFlags, isBlocked, BLOCKING_FLAGS, fitScore, compositeScore, archetypeFloor, WEIGHT_MULTIPLIER } from './gates.js';
+import { gate0, rank, capPerCompany, blockingFlags, isBlocked, BLOCKING_FLAGS, fitScore, compositeScore, archetypeFloor, WEIGHT_MULTIPLIER, ageInDays, MAX_AGE_DAYS } from './gates.js';
 
 const ROOT = path.resolve(import.meta.dirname, '..');
 const cfg = yaml.load(fs.readFileSync(path.join(ROOT, 'profile/gates.example.yaml'), 'utf8'));
+
+// Relative to the run, never a literal date. Gate 0 kills anything older than
+// ninety days, so a hard-coded fixture date turns this whole file red about
+// three months after somebody writes it, for reasons having nothing to do with
+// the rule under test.
+const daysAgo = (n) => new Date(Date.now() - n * 86400000).toISOString().slice(0, 10);
 
 const job = (over = {}) => ({
   key: 'x',
@@ -17,7 +23,7 @@ const job = (over = {}) => ({
   title: 'Senior Conversational AI Engineer',
   location: 'Remote (US)',
   description: 'Build voice agents. Own behavioral specs.',
-  posted: '2026-08-01',
+  posted: daysAgo(10),
   comp: null,
   ...over,
 });
@@ -128,7 +134,16 @@ const relocCfg = {
     remote_office_signals: ['Remote-Friendly', 'Travel-Required', 'Travel Required'],
   },
 };
-const at = (loc) => job({ location: loc });
+// Past relocCfg's stay_until of 2027-01-01.
+const FUTURE = new Date('2027-02-01T00:00:00Z');
+
+// The location tests pass an explicit `now`, sometimes years out to get past
+// stay_until. The posting date has to move with it: a fixture posted ten days
+// before today is six months stale when the test asks what the gate says in
+// February 2027, and every one of these rows would fail on freshness instead of
+// testing the location rule it was written for.
+const at = (loc, now = new Date()) =>
+  job({ location: loc, posted: new Date(now.getTime() - 10 * 86400000).toISOString().slice(0, 10) });
 
 t('a London onsite role passes once relocation is on', () => {
   assert.equal(gate0(at('London, UK'), relocCfg).pass, true);
@@ -175,7 +190,7 @@ t('before stay_until a relocation row is priced, not killed', () => {
 });
 
 t('after stay_until the relocation cost flag falls away', () => {
-  const r = gate0(at('London, UK'), relocCfg, new Date('2027-02-01T00:00:00Z'));
+  const r = gate0(at('London, UK', FUTURE), relocCfg, FUTURE);
   assert.equal(r.pass, true);
   assert.ok(!r.flags.some((f) => f.startsWith('relocation_cost')));
   assert.ok(r.flags.some((f) => f.startsWith('location_tier:tier_1')));
@@ -292,7 +307,7 @@ t('stay_until works when YAML hands it over as a Date, not a string', () => {
   };
   const before = gate0(at('London, UK'), asDateCfg, new Date('2026-08-12T00:00:00Z'));
   assert.ok(before.flags.some((f) => f.startsWith('relocation_cost:')));
-  const after = gate0(at('London, UK'), asDateCfg, new Date('2027-02-01T00:00:00Z'));
+  const after = gate0(at('London, UK', FUTURE), asDateCfg, FUTURE);
   assert.ok(!after.flags.some((f) => f.startsWith('relocation_cost:')));
 });
 
@@ -336,23 +351,25 @@ t('bare remote stays clean', () => {
 
 t('a tier tag is informational and does not block SHIP', () => {
   // After stay_until, so relocation_cost is gone and the tier tag stands alone.
-  const r = gate0(at('London, UK'), relocCfg, new Date('2027-02-01T00:00:00Z'));
+  const r = gate0(at('London, UK', FUTURE), relocCfg, FUTURE);
   assert.ok(r.flags.some((f) => f.startsWith('location_tier:')));
   assert.deepEqual(blockingFlags(r.flags).filter((f) => f.startsWith('location_tier:')), []);
 });
 
-t('the four blocking classes block', () => {
+t('the five blocking classes block', () => {
   assert.deepEqual(BLOCKING_FLAGS, [
     'relocation_cost:',
     'country_only:',
     'remote_unverified:',
     'comp:unknown',
+    'posted:unknown',
   ]);
   for (const f of [
     'relocation_cost:prefers Phoenix, AZ until 2027-01-01',
     'country_only:United States, resolve the city before shipping',
     'remote_unverified:Remote-Friendly, confirm where the team sits',
     'comp:unknown, verify before spending a slot',
+    'posted:unknown, ashby published no date, age unverifiable',
   ]) {
     assert.ok(isBlocked([f]), f);
   }
@@ -669,6 +686,110 @@ t('the cap now keeps the two best-fitting rows, not the two most recent', () => 
   const out = capPerCompany(rank(rows, W, cfg), 2);
   assert.ok(out.some((r) => r.key === 'real'), 'the well-fitting April row must survive the cap');
   assert.equal(out[0].key, 'real');
+});
+
+// Freshness. Measured 2026-08-13 on 3,479 live rows: this rule is the largest
+// single kill class Gate 0 has, so it gets tested at both edges rather than in
+// the middle where an off-by-one cannot show.
+const NOW = new Date('2026-08-13T12:00:00Z');
+
+t('a posting older than the limit dies', () => {
+  const r = gate0(job({ posted: '2026-01-01' }), cfg, NOW);
+  assert.equal(r.pass, false);
+  assert.ok(r.reasons.some((x) => x.startsWith('stale:')));
+});
+
+t('the reason names the date, the age, and the limit it broke', () => {
+  const r = gate0(job({ posted: '2026-01-01' }), cfg, NOW);
+  const reason = r.reasons.find((x) => x.startsWith('stale:'));
+  assert.match(reason, /2026-01-01/);
+  assert.match(reason, /224 days old/);
+  assert.match(reason, /limit 90/);
+});
+
+t('exactly at the limit still passes, one day past it does not', () => {
+  const at = new Date('2026-01-01T00:00:00Z');
+  at.setUTCDate(at.getUTCDate() + 90);
+  const past = new Date(at.getTime() + 86400000 + 1000);
+  assert.equal(gate0(job({ posted: '2026-01-01' }), cfg, at).pass, true, '90 days is not stale');
+  assert.equal(gate0(job({ posted: '2026-01-01' }), cfg, past).pass, false, '91 days is');
+});
+
+t('a full ISO timestamp parses, so board rows are not all read as undated', () => {
+  // The trap asDate() fell into on stay_until: appending T00:00:00Z to a string
+  // that already carries a time yields Invalid Date, and every comparison
+  // against Invalid Date is false, so the gate silently never fires.
+  assert.equal(ageInDays('2026-08-03T17:04:22.000Z', NOW), 9);
+  assert.equal(gate0(job({ posted: '2025-02-11T09:12:00Z' }), cfg, NOW).pass, false);
+});
+
+t('a date in the future is not stale', () => {
+  assert.equal(ageInDays('2026-09-01', NOW), -19);
+  assert.equal(gate0(job({ posted: '2026-09-01' }), cfg, NOW).pass, true);
+});
+
+t('max_age_days 0 turns the rule off rather than killing everything', () => {
+  const off = { ...cfg, freshness: { max_age_days: 0 } };
+  assert.equal(gate0(job({ posted: '2019-01-01' }), off, NOW).pass, true);
+});
+
+t('the limit is configurable and the default is 90', () => {
+  const tight = { ...cfg, freshness: { max_age_days: 30 } };
+  assert.equal(MAX_AGE_DAYS, 90);
+  assert.equal(gate0(job({ posted: '2026-07-01' }), cfg, NOW).pass, true);
+  assert.equal(gate0(job({ posted: '2026-07-01' }), tight, NOW).pass, false);
+});
+
+t('a config with no freshness block still gets the 90 day default', () => {
+  const bare = { ...cfg };
+  delete bare.freshness;
+  assert.equal(gate0(job({ posted: '2026-01-01' }), bare, NOW).pass, false);
+});
+
+t('a missing date flags rather than kills, and names the board', () => {
+  const r = gate0(job({ posted: null, source: 'ashby' }), cfg, NOW);
+  assert.equal(r.pass, true, 'a missing record is not evidence of an old posting');
+  const flag = r.flags.find((f) => f.startsWith('posted:unknown'));
+  assert.ok(flag, 'P5: the missing record has to be named');
+  assert.match(flag, /ashby/);
+});
+
+t('an unparseable date is treated as missing, not as age zero', () => {
+  assert.equal(ageInDays('not a date', NOW), null);
+  assert.equal(ageInDays('', NOW), null);
+  const r = gate0(job({ posted: 'sometime last spring' }), cfg, NOW);
+  assert.equal(r.pass, true);
+  assert.ok(r.flags.some((f) => f.startsWith('posted:unknown')));
+});
+
+t('posted:unknown blocks SHIP', () => {
+  assert.ok(BLOCKING_FLAGS.includes('posted:unknown'));
+  assert.equal(isBlocked(gate0(job({ posted: null }), cfg, NOW).flags), true);
+});
+
+t('posted:unknown costs no fit point, so an undated board is not sorted last', () => {
+  const dated = job({ title: 'Model Evaluation Engineer', flags: ['comp:unknown'] });
+  const undated = job({ title: 'Model Evaluation Engineer', flags: ['comp:unknown', 'posted:unknown, ashby published no date'] });
+  assert.equal(fitScore(undated, cfg), fitScore(dated, cfg));
+});
+
+t('a stale row is killed even when everything else about it is perfect', () => {
+  // The shape of the 392-day ElevenLabs row measured 2026-08-13, which cleared
+  // every other gate. Its actual title was Deployment Strategist, which the
+  // example config scores but does not list as a target family, so the sibling
+  // forward-deployed title stands in.
+  const r = gate0(
+    job({
+      title: 'Forward Deployed Engineer - North America',
+      location: 'Remote',
+      comp: { min: 180000, max: 260000 },
+      posted: '2025-07-17',
+    }),
+    cfg,
+    NOW
+  );
+  assert.equal(r.pass, false);
+  assert.deepEqual(r.reasons.map((x) => x.split(':')[0]), ['stale']);
 });
 
 console.log(`\n${pass} passing`);
