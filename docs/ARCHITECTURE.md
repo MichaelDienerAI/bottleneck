@@ -168,7 +168,9 @@ Constraint diagnosis can fabricate. A model handed a company name and no observa
 
 Euclid separates making something from showing it works. This section keeps them apart, because collapsing them is the most common failure in technical documentation and I would rather label my own gap than have a reader find it.
 
-**Constructed and running.** The board fetchers, Gate 0 with eighty-one passing tests, the ledger with drum accounting and the RAND readout, the case file with lifecycle tests, the token verifier, the agent and command definitions, the two reference documents.
+**Constructed and running.** The board fetchers, Gate 0 with eighty-one passing tests, the liveness checks with ten more, the ledger with drum accounting and the RAND readout, the case file with lifecycle tests, the token verifier, the agent and command definitions, the two reference documents.
+
+The freshness rule is the one part of Gate 0 that has been exercised against a named live posting rather than only against fixtures. On 2026-08-13 it rejected Notion's Model Behavior Engineer requisition, published 2026-02-20 and 174 days old, which LinkedIn was simultaneously showing as "reposted 2 days ago." The buffer-delisting half has not yet fired on a real row: measured the same day, every row in the buffer was still on its board.
 
 **Constructed but not yet exercised on real data.** The full diagnose-to-ship path. No company has been diagnosed. No packet has been written. No row has entered the ledger from an actual send.
 

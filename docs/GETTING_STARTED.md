@@ -139,6 +139,8 @@ Find the reason that killed the most jobs, then read three of the jobs it killed
 
 **If no:** the rule is working. Move on.
 
+Expect `stale:` to be near the top of that list. It is the ninety-day rule, and on a live run it accounts for roughly two rows in five. That is the rule working, not a fetch that went wrong. Read three of those too: if a nine-month-old requisition looks worth writing to, the number to change is `freshness.max_age_days` in `profile/gates.yaml`, and change it deliberately rather than because the count looked large.
+
 **Why this matters:** a rule you have never checked will quietly delete the best job on the board and never mention it.
 
 ---

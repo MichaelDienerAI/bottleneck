@@ -39,7 +39,7 @@ The rope runs backward: the ledger reports open slots, the scanner only promotes
 
 The split is deliberate. Code handles anything deterministic, because a model that scores keyword overlap is an expensive regex with worse recall. Agents handle judgment, because inferring what actually binds a company from a job description is inference, not matching.
 
-**Code:** fetch public ATS boards, dedupe, apply hard disqualifiers, extract compensation, compute fitness, enforce drum capacity, write the ledger.
+**Code:** fetch public ATS boards, dedupe, apply hard disqualifiers, extract compensation, kill postings older than ninety days, delist queued rows that have come off their board, compute fitness, enforce drum capacity, write the ledger.
 
 **Agents:** diagnose the employer's constraint, test that diagnosis against inspectable evidence, map it to a sovereign proof, write the packet.
 
@@ -84,9 +84,9 @@ CLAUDE.md               project instructions Claude Code reads on every session
 profile/proof-ledger.yaml   your sovereign vs speculative proofs, from Isocrates section
 profile/gates.yaml          hard disqualifiers and the compensation floor
 profile/companies.yaml      target boards by archetype, with allocation weights
-src/                    fetchers, gates, case files, ledger, brief renderer
+src/                    fetchers, gates, liveness checks, case files, ledger, brief renderer
 data/cases/             generated: one persistent case file per company
-data/                   generated: candidates, diagnoses, ledger
+data/                   generated: candidates, killed, delisted, liveness, diagnoses, ledger
 packets/                generated: one folder per shipped packet
 ```
 

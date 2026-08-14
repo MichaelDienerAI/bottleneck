@@ -48,9 +48,13 @@ Everything else asks the counter first. If the week is full, the search does not
 
 **Why it exists.** Reading job boards is cheap and judging companies is expensive. The scout protects the expensive worker from drowning in postings nobody will have time to read.
 
-**How it works.** It fetches the boards, then runs every job through five rules written in code with no judgment involved. Is the title work you do. Is it somewhere you would go. Does the published pay clear your floor. Is the seniority right. Does it demand something you have never shown publicly.
+**How it works.** It fetches the boards, then runs every job through six rules written in code with no judgment involved. Is the title work you do. Is it somewhere you would go. Does the published pay clear your floor. Is the seniority right. Does it demand something you have never shown publicly. And has the job been open less than ninety days.
 
 One failed rule kills the job. The rules cannot outvote each other, because a rule that can be overruled is not a rule.
+
+The ninety-day rule is the newest and the harshest: it removes about two rows in five. A posting that has been up since spring is a job somebody has been failing to fill for months, and a letter aimed at it lands on a requisition that may be filled, frozen, or forgotten. If a board stops publishing dates, the job is not killed — it is passed along carrying a note that says the age could not be checked, and that note has to be settled before anything is sent.
+
+The scan also re-checks the jobs already waiting in your queue. A job that has come off the company's own board since the day it was queued is moved out to `data/delisted.json` with the date, so a closed job cannot sit in front of the researcher looking exactly like an open one.
 
 What survives gets sorted by how much of your week that kind of company deserves, then by how closely the job matches work you can prove, then by how recently it posted. Two per company, so one large employer cannot take every slot. At least one from each kind of company, so your queue does not become nine rows from one corner of the market.
 
@@ -202,6 +206,8 @@ A job with no arrows is ready today.
 **The board says zero jobs.** It should be structurally impossible now, since every fetched row gets scored on every run. If it happens anyway, check `data/scan-errors.json` for boards that would not answer.
 
 **A company you expect never appears.** Read `data/killed.json` and search for the company name. Every killed row carries its url, location, and the reason. If the reason looks wrong, the rule needs adjusting rather than the company.
+
+**A job you were waiting on disappeared from the queue.** Read `data/delisted.json`. It holds every row that came off its company's board, with the date it went and why. A row leaving the queue is a finding: it means a slot was about to be spent on a job that had closed.
 
 **Nothing runs on schedule.** Read `data/logs/`. The most common cause is that the scheduler does not inherit your shell, so `node` or `claude` is not on the path it uses.
 

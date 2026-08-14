@@ -57,8 +57,8 @@ Run these in a terminal:
   ATS boards
       │
       ▼
-  INGESTED ──────► killed at Gate 0 ──► data/killed.json  (dead, with a reason)
-  (data/queue.json)
+  INGESTED ──────► killed at Gate 0 ──► data/killed.json     (dead, with a reason)
+  (data/queue.json) ─► came off the board ─► data/delisted.json  (dead, with a date)
       │
       ▼
   BRIEF ─────────► observables only, no diagnosis
@@ -109,7 +109,7 @@ ls -lt data/logs/ | head            # last several runs
 
 **"Is anything broken?"**
 ```bash
-npm test                            # expect 68 + 41 + 7 passing
+npm test                            # expect 81 + 41 + 7 + 10 passing, 139 total
 ```
 
 **"I want to see today's work."** Open `data/board.html` and `data/briefs/<today>.md` in a browser and an editor.
@@ -132,7 +132,7 @@ A Node script. No model, so there is nothing to fabricate and nothing to audit.
 
 1. `node src/ledger.js --slots` — reads the drum.
 2. **If slots are zero or unreadable, it exits.** It does not fetch. This is the single most important behavior in the schedule.
-3. `node src/scan.js` — fetches every board in `profile/companies.yaml`, dedupes against `data/seen.json`, applies Gate 0, writes `data/candidates.json` and `data/killed.json`.
+3. `node src/scan.js` — fetches every board in `profile/companies.yaml`, dedupes against `data/seen.json`, applies Gate 0, and re-checks that every buffer row is still on its board. Writes `data/candidates.json`, `data/killed.json`, `data/delisted.json`, and `data/liveness.json`.
 4. `node src/report.js` — rebuilds `data/board.html`.
 5. `node src/walkthrough.js` — rebuilds `data/walkthrough.html`.
 

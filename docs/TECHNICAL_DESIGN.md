@@ -104,7 +104,21 @@ pass = reasons.length === 0
 
 That single line is the architectural commitment. No weighted total, no threshold, no averaging. One failed check fails the row regardless of how strong everything else looks. Any change that introduces an aggregate score here converts the obstacle course into an assembly line and should be rejected in review.
 
-`flags` travel forward instead of killing. A `comp:unknown` or `posted:unknown` flag must be resolved before SHIP, and a `generalist_trap` flag warns the diagnostician that the role may be a wild-card posting. Neither of the two `unknown` flags costs a fit point: both name something the board failed to publish rather than something about the role, so charging fit for them would reorder the buffer by ATS vendor.
+`flags` travel forward instead of killing. A `generalist_trap` flag warns the diagnostician that the role may be a wild-card posting; a **blocking** flag has to be resolved before SHIP. Blocking is a defined set, not "any flag." `BLOCKING_FLAGS` in `src/gates.js` is authoritative; read it there rather than trusting this table. Verified against `src/gates.js:223` on 2026-08-13:
+
+| Flag prefix | Blocks because |
+|---|---|
+| `relocation_cost:` | the role needs a move before `stay_until`, so the cost needs pricing |
+| `country_only:` | the posting names a country or state but no city |
+| `remote_unverified:` | a remote label carries an office or travel expectation |
+| `comp:unknown` | no published band, so the floor is unconfirmed |
+| `posted:unknown` | the board published no date, so the freshness rule could not rule |
+
+Everything else — `location_tier:`, `generalist_trap:`, `bureaucracy_signal:` — is informational and never vetoes.
+
+**`stale:` is a kill reason, not a flag, and it is not on that list.** Reasons and flags are different fields doing different jobs: a reason ends the row at Gate 0, a flag travels with a row that survived. A stale posting never reaches a diagnosis at all, so a `stale:` veto would be a veto on rows that cannot exist. The same holds for `seniority:`, `title:`, `location:`, and the `hard_disqualifiers` groups.
+
+Neither `unknown` flag costs a fit point: both name something the board failed to publish rather than something about the role, so charging fit for them would reorder the buffer by ATS vendor.
 
 `rank` sorts by archetype allocation weight, then by recency. Prestige contributes nothing and there is no field for it.
 

@@ -131,6 +131,10 @@ target_titles:
 #   2 = adjacent work
 #   1 = weak signal
 title_weights:
+  model behavior: 3          # `behavioral` does NOT substring-match "Model Behavior
+                             # Engineer". Measured 2026-08-13: the closest title in
+                             # the whole search scored 0 until this line existed.
+                             # Same defect class as an unnormalized Zurich token.
   model evaluation: 3
   evaluation engineer: 3
   evals: 3
