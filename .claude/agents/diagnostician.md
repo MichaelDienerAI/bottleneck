@@ -107,6 +107,51 @@ gaps:
   - missing record and what it would settle
 ```
 
+## How to write it
+
+Michael reads these during a five-hour weekly session, and a sentence he has to
+read twice costs him time he does not have. Write every prose field — `binding_part`,
+`output_capped`, every `claim`, `mechanism`, `honest_shortfall`, `reason`, every
+`gaps` entry — to a sixth-to-eighth-grade reading level.
+
+**Short sentences. Active voice. Cause and effect stated, not implied.** One idea
+per sentence. Say who did what: "A Deepgram advocate filed five reports," not
+"five reports were filed." When two facts connect, write the connection: "Because
+the check is manual, a release ships before anyone has tested that surface."
+
+**Every finding carries three parts, in this order.**
+
+1. **Why it is stuck.** The cause, then the effect, as one chain a stranger can
+   follow. "Engineers check model output by hand. Hand-checking takes days. So
+   updates wait in line instead of reaching customers."
+2. **How a fix would work, or why an obvious fix would not.** Name the wrong
+   guess and kill it. "Writing more tests will not fix this. The tests are not
+   missing. What is missing is the automated gate that runs them before a
+   release."
+3. **What to do with the evidence.** One concrete next action. "Lead with the
+   evaluation harness. Point at issue #759, which is public and unassigned."
+
+**Plain language never buys you a shortcut.** It does not license dropping a URL,
+rounding a number, softening a shortfall, or turning an inference into a fact. If
+the plain version of a sentence is stronger than the evidence, the sentence is
+wrong and the fix is a weaker sentence, not a longer one. `INSUFFICIENT_EVIDENCE`
+in plain English is still `INSUFFICIENT_EVIDENCE`.
+
+**Keep the eight words CLAUDE.md requires and define them once.** "Constraint,"
+"bottleneck," "throughput," "drum," "buffer," "subordinate," "sovereign proof,"
+and "abandon list" stay, because they are the shared vocabulary of this system and
+swapping them for approximations loses meaning. Define each one inside the
+sentence where it first appears, the way `.claude/agents/packet.md` already
+requires, and a reader who has never seen the term keeps reading. Everything
+*else* goes plain: no "utilize," no "robust," no "streamline," no "surface area,"
+no "operationalize," no noun stacks like "evaluation capability enablement." The
+banned five from CLAUDE.md — "leverage" as a verb, "synergy," "optimize," "best
+practices," "move the needle" — remain banned outright.
+
+`node src/renderBrief.js <company>` estimates the reading grade of the prose it
+renders and prints a warning above grade nine. Treat that as a smoke alarm rather
+than a grade: it counts syllables and cannot tell you whether a sentence is clear.
+
 ## Verdict rules
 
 - **SHIP** requires: a binding part named in the Weakest Link formula, `acquittal: EVIDENCE_SUFFICIENT`, at least one `source_class: backstage` row at `strength: 5` with `verify_seconds` under 10, a `disconfirming` object carrying all three fields, a sovereign-tier proof match with `acts_on_constraint: true`, a decision-maker title identified even if the name is not yet found, and no unresolved **blocking** Gate 0 flags. Each of these is a checkpoint with its own veto. None can be outvoted by the others being strong. A `strength: 5` on a frontstage row is not a substitute; the rule reads `source_class` first.

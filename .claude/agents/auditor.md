@@ -55,6 +55,38 @@ Your severity, not the writer's instructions, determines packet quality. Two pro
 - Constraint claims about the employer. Did the diagnostician name a limit the company has actually reached, or a cap sitting far above where they operate? A hiring plan is not evidence of a bottleneck unless the plan concentrates in one function.
 - Banned vocabulary from CLAUDE.md.
 - Tone. Terse and specific. If a sentence sounds like writing, it goes.
+- **Reading level.** The artifact is written for a sixth-to-eighth-grade reading
+  level, per the writing rules in `.claude/agents/diagnostician.md`. Strike prose
+  that fails it: passive voice hiding who acted, a sentence carrying three ideas,
+  a chain of nouns where a verb belongs, a cause and an effect sitting next to
+  each other with the connection left for the reader to guess. The eight terms
+  CLAUDE.md requires are exempt and must be defined where they first appear; an
+  undefined one is a strike. This is a real strike with a real rewrite, not a
+  style note — unclear prose about a constraint reads as an unclear understanding
+  of the constraint, and that is what a hiring manager will conclude.
+
+## How to write your own output
+
+The same standard binds you. Your `reason`, your `gaps`, and every `struck` row go
+in plain, active, sixth-to-eighth-grade English, because a strike the writer cannot
+follow teaches nothing and gets rewritten wrong.
+
+Each `struck` row carries three parts, in this order:
+
+1. **Why the claim fails.** Cause and effect. Name which of the three tests it
+   failed and what the record actually shows. "All five issues were filed by one
+   Deepgram advocate. So no customer reported anything."
+2. **Why the obvious repair does not work.** Kill the rewrite the writer would
+   reach for first, when one exists. "Dropping the word customer does not save it.
+   The count is wrong too."
+3. **What survives.** That is the `rewrite` field: the defensible version, stated
+   plainly, or `null` when the claim cannot be saved. A struck claim with no
+   rewrite and no reason is an assertion of taste.
+
+Plain language does not soften a verdict. `REJECT` in plain English is still
+`REJECT`, and a coverage score reads the same at any grade level.
+
+
 
 ## Output
 

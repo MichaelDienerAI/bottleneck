@@ -26,6 +26,13 @@
 //      and the PASS badge are reserved for an audit that returned PASS. An
 //      unaudited diagnosis renders as unaudited. Nothing here decides whether an
 //      artifact is cleared; it only refuses to imply that it is.
+//
+// It also checks the prose against the writing rules in
+// .claude/agents/diagnostician.md and prints what it finds: banned vocabulary,
+// corporate filler, and an estimated reading grade against the sixth-to-eighth
+// grade target. A renderer cannot follow a writing rule, so it measures one. The
+// warnings go to stdout, never onto the page, because the page goes to a stranger
+// and the warning is for the person rewriting.
 
 import fs from 'node:fs';
 import path from 'node:path';
@@ -64,6 +71,51 @@ const DRAFT_HEADER = 'DRAFT ONLY — REQUIRES HUMAN REVIEW AND MANUAL SEND';
 // CLAUDE.md bans these outright. Reported to stdout rather than printed on the
 // page: the page goes to a stranger, the warning is for the person rewriting.
 const BANNED = [/\bleverag(e|es|ed|ing)\b/i, /\bsynerg/i, /\boptimiz/i, /\bbest practices\b/i, /\bmove the needle\b/i];
+
+// Corporate filler the writing rules in .claude/agents/diagnostician.md rule out.
+// Not banned by CLAUDE.md, so these are warnings rather than errors.
+const JARGON = [
+  /\butiliz(e|es|ed|ing|ation)\b/i,
+  /\brobust\b/i,
+  /\bstreamlin/i,
+  /\bsurface area\b/i,
+  /\boperationaliz/i,
+  /\bholistic/i,
+  /\bseamless/i,
+  /\bmission[- ]critical\b/i,
+  /\bstakeholder/i,
+  /\bdeep dive\b/i,
+];
+
+// Flesch-Kincaid grade, which counts syllables and knows nothing about clarity.
+// It catches long sentences stacked with long words, which is the failure mode
+// worth catching, and it will happily pass gibberish. A smoke alarm, not a grade.
+const syllables = (w) => {
+  const s = w.toLowerCase().replace(/[^a-z]/g, '');
+  if (s.length <= 3) return 1;
+  const groups = s
+    .replace(/(?:[^laeiouy]es|ed|[^laeiouy]e)$/, '')
+    .replace(/^y/, '')
+    .match(/[aeiouy]{1,2}/g);
+  return groups ? groups.length : 1;
+};
+
+function readingGrade(text) {
+  const clean = String(text)
+    .replace(/https?:\/\/\S+/g, '')  // URLs are not prose and wreck the count
+    .replace(/`[^`]*`/g, '')
+    .replace(/[#*_>|]/g, ' ');
+  const sentences = clean.split(/[.!?]+(?:\s|$)/).filter((s) => s.trim().split(/\s+/).length > 2);
+  const words = clean.split(/\s+/).filter((w) => /[a-z]/i.test(w));
+  if (sentences.length < 3 || words.length < 40) return null;
+  const syl = words.reduce((n, w) => n + syllables(w), 0);
+  const grade = 0.39 * (words.length / sentences.length) + 11.8 * (syl / words.length) - 15.59;
+  return {
+    grade: Math.round(grade * 10) / 10,
+    perSentence: Math.round((words.length / sentences.length) * 10) / 10,
+    sentences: sentences.length,
+  };
+}
 
 // The diagnostician writes strength as a word, the audit schema as an integer
 // 1-5. Both appear in the same file once an audit is appended, so normalize.
@@ -831,10 +883,14 @@ if (!cl.cleared) console.log('  NOT CLEARED for a packet. Rendered with the draf
 if (cl.dmMissing) console.log('  Decision-maker name is unresolved, which blocks a packet on one lookup.');
 
 if (d.strikes?.struck?.length) {
-  const landed = d.strikes.struck.length - st.unmatched.length;
-  console.log(
-    `  ${d.strikes.struck.length} strikes: ${landed} placed on the claim they hit, ${st.unmatched.length} listed separately`
-  );
+  const rows = d.strikes.struck.length;
+  const landed = rows - st.unmatched.length;
+  console.log(`  ${rows} strikes: ${landed} placed on the claim they hit, ${st.unmatched.length} listed separately`);
+  // claims_struck is the auditor's own count. If it disagrees with the rows it
+  // wrote, one of the two is wrong and the page is showing the rows.
+  if (d.strikes.claims_struck != null && Number(d.strikes.claims_struck) !== rows) {
+    console.log(`  claims_struck says ${d.strikes.claims_struck} but ${rows} struck rows are listed. The rows are shown.`);
+  }
 }
 
 // The validators only ever see JS objects in the test suite, so nothing catches
@@ -847,9 +903,38 @@ for (const [where, v] of [
   if (v instanceof Date) console.log(`  ${where} 'dated' is an unquoted YAML date, so it fails the schema. Quote it.`);
 }
 
-const prose = [d.constraint_hypothesis?.binding_part, d.proof_match?.mechanism, input.brief].filter(Boolean).join('\n');
+// Read every prose field the writing rules govern, not just the headline ones, so
+// the warning covers what the page actually shows a reader.
+const prose = [
+  d.constraint_hypothesis?.binding_part,
+  d.constraint_hypothesis?.output_capped,
+  d.proof_match?.mechanism,
+  d.proof_match?.honest_shortfall,
+  d.reason,
+  ...(d.evidence || []).map((e) => e.claim),
+  ...(d.gaps || []),
+  ...(d.strikes?.struck || []).flatMap((s) => [s.reason, s.rewrite]),
+  input.brief,
+]
+  .filter(Boolean)
+  .join('\n\n');
+
 const hits = BANNED.filter((r) => r.test(prose));
-if (hits.length) console.log(`  Banned vocabulary present in the source text: ${hits.map((r) => r.source).join(', ')}`);
+if (hits.length) console.log(`  Banned vocabulary present: ${hits.map((r) => r.source).join(', ')}`);
+
+const filler = JARGON.filter((r) => r.test(prose));
+if (filler.length) console.log(`  Corporate filler present: ${filler.map((r) => r.source).join(', ')}`);
+
+// Sixth to eighth grade is the target. Above nine, say so and say what drove it,
+// because a long-sentence problem and a long-word problem need different edits.
+const read = readingGrade(prose);
+if (read) {
+  const verdict = read.grade > 9 ? 'ABOVE the 6-8 target' : 'within the 6-8 target';
+  console.log(
+    `  Reading grade about ${read.grade}, ${verdict} · ${read.perSentence} words per sentence across ${read.sentences} sentences`
+  );
+  if (read.grade > 9) console.log('  Estimated by syllable count, so it cannot judge clarity. Shorten sentences first.');
+}
 
 if (wantPdf) {
   const pdf = toPdf(outPath);
