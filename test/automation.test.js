@@ -15,6 +15,7 @@ import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import { pathToFileURL } from 'node:url';
 
 const REPO = path.resolve(import.meta.dirname, '..');
 const fixtures = [];
@@ -104,11 +105,12 @@ function stubClaude(repo, { exitCode = 0 } = {}) {
   return p;
 }
 
-// A ledger row dated inside the current week. Anchored at local noon on purpose:
-// src/ledger.js does its week arithmetic in local time and then formats through
-// toISOString, so a bare YYYY-MM-DD string parses as UTC midnight and can bucket
-// into the previous week. Noon survives that round trip in every zone.
-const thisWeekRow = () => ({ date: `${new Date().toLocaleDateString('en-CA')}T12:00:00` });
+// A ledger row dated inside the current week, at local noon. src/ledger.js now
+// does the whole week calculation on the local clock, so any hour buckets
+// correctly; noon is kept because a bare YYYY-MM-DD string still parses as UTC
+// midnight, which is a property of Date rather than of the ledger. The tests
+// below cover the hours that used to break.
+const thisWeekRow = (hour = '12:00') => ({ date: `${new Date().toLocaleDateString('en-CA')}T${hour}:00` });
 
 // Runs the script and returns the log it wrote. run.sh redirects all output to
 // data/logs/<date>.log, so stdout here is empty by design and the log file is
@@ -233,6 +235,80 @@ t('non-integer or corrupted ledger state', () => {
   assert.ok(log2.includes('non-integer slot count'), `expected the sanitizer notice\n--- log ---\n${log2}`);
   assert.ok(log2.includes('open slots: 0'), `a non-integer count was not forced to 0\n--- log ---\n${log2}`);
   assert.ok(log2.includes('Drum full'), `a non-integer count did not close the gate\n--- log ---\n${log2}`);
+});
+
+// ---------------------------------------------------------------------------
+// The week boundary
+// ---------------------------------------------------------------------------
+
+// weekStart used to read the day with local getDay/setDate and then format with
+// toISOString. In any zone behind UTC that pushed the date forward once local
+// time passed midnight-minus-offset, so the same Thursday returned Monday at 9am
+// and Tuesday at 6pm. openSlots buckets every ledger row by that value, so five
+// spent slots read as five open ones after about 5pm Phoenix time and the drum
+// silently reset every evening.
+//
+// The only test that caught it was the drum guard above, and only when the suite
+// happened to run late in the day — which is a test that passes in CI at 09:00
+// and fails at 18:00 for reasons no one will connect to timezones. These two run
+// the real src/ledger.js in a child process with TZ set, so they assert the same
+// thing at every hour and on every machine.
+//
+// TZ cannot be changed inside a running process; Date caches the zone at startup.
+// A child process is the only honest way to test this.
+const inZone = (tz, code) =>
+  JSON.parse(
+    execFileSync(process.execPath, ['--input-type=module', '-e', code], {
+      env: { ...process.env, TZ: tz },
+      encoding: 'utf8',
+    })
+  );
+
+const LEDGER_URL = pathToFileURL(path.join(REPO, 'src/ledger.js')).href;
+const ZONES = ['UTC', 'America/Phoenix', 'America/New_York', 'Asia/Tokyo'];
+
+// Today's calendar date as the target zone sees it. The row has to be dated the
+// child's today, not the parent's: run the suite at 18:30 in Phoenix and it is
+// already tomorrow in Tokyo, so a date computed here would land the row in a
+// different week there and fail for a reason that has nothing to do with the bug.
+const todayIn = (tz) =>
+  new Intl.DateTimeFormat('en-CA', { timeZone: tz, year: 'numeric', month: '2-digit', day: '2-digit' }).format(
+    new Date()
+  );
+
+t('weekStart is the same local Monday at every hour of the day', () => {
+  // A fixed Thursday, read at three hours that straddle the UTC date boundary in
+  // zones both behind and ahead of it. All nine answers must be the Monday of
+  // that week, 2026-08-10, because the calendar week a human is in does not
+  // change at 5pm.
+  for (const tz of ZONES) {
+    const got = inZone(
+      tz,
+      `const {weekStart} = await import(${JSON.stringify(LEDGER_URL)});
+       console.log(JSON.stringify(['09:00','18:00','23:30'].map(h => weekStart(new Date('2026-08-13T'+h+':00')))));`
+    );
+    assert.deepEqual(got, ['2026-08-10', '2026-08-10', '2026-08-10'], `${tz} shifted the week within a single day: ${got.join(' ')}`);
+  }
+});
+
+t('openSlots counts evening and small-hours rows in the right week', () => {
+  // The consequence, not the helper. Five rows timestamped today close the drum,
+  // whatever hour they carry. Under the old arithmetic an 18:30 row in a zone
+  // behind UTC bucketed into next week and left the drum reading wide open, and
+  // it did that no matter when the suite ran.
+  for (const tz of ZONES) {
+    for (const hour of ['00:30', '18:30', '23:30']) {
+      const { repo } = makeFixture({
+        ledger: JSON.stringify(Array.from({ length: 5 }, () => ({ date: `${todayIn(tz)}T${hour}:00` }))),
+      });
+      const got = inZone(
+        tz,
+        `const {openSlots} = await import(${JSON.stringify(LEDGER_URL)});
+         console.log(JSON.stringify(openSlots(${JSON.stringify(repo)})));`
+      );
+      assert.equal(got, 0, `${tz} at ${hour}: five rows this week left ${got} slots open, so the drum reset`);
+    }
+  }
 });
 
 // ---------------------------------------------------------------------------

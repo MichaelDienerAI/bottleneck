@@ -48,7 +48,7 @@ Run these in a terminal:
 | `npm run walk` | Rebuilds `data/walkthrough.html` |
 | `npm run brief <company>` | Renders a diagnosis, or a packet directory, to one self-contained HTML page. Add `--pdf` for a PDF via system Chrome. Reports the clearance state it found and gates nothing |
 | `npm run verify` | Checks every board token in `profile/companies.yaml`. Writes `data/token-verification.json` |
-| `npm test` | Three suites, 114 assertions, no network. Run before you trust anything |
+| `npm test` | Three suites, 116 assertions, no network. Run before you trust anything |
 | `./bin/run.sh` | Runs the whole scheduled job by hand, exactly as launchd runs it |
 
 ## The pipeline, end to end
@@ -109,7 +109,7 @@ ls -lt data/logs/ | head            # last several runs
 
 **"Is anything broken?"**
 ```bash
-npm test                            # expect 68 + 41 + 5 passing
+npm test                            # expect 68 + 41 + 7 passing
 ```
 
 **"I want to see today's work."** Open `data/board.html` and `data/briefs/<today>.md` in a browser and an editor.
@@ -448,7 +448,7 @@ Three suites, no network, no model:
 
 - `src/gates.test.js` — 68 assertions on Gate 0.
 - `test/schema.test.js` — 41 on both payload schemas and the six named rules.
-- `test/automation.test.js` — 5 on `bin/run.sh`, against a fixture repository under a temporary `HOME`. It copies the real `run.sh` and `ledger.js` rather than paraphrasing them, drives half two through `CLAUDE_BIN`, and never invokes the real CLI or the network.
+- `test/automation.test.js` — 7 on `bin/run.sh` and the week boundary, against a fixture repository under a temporary `HOME`. It copies the real `run.sh` and `ledger.js` rather than paraphrasing them, drives half two through `CLAUDE_BIN`, and never invokes the real CLI or the network. The last two run `ledger.js` in child processes with `TZ` set, because `weekStart` once shifted the week after 5pm in zones behind UTC and quietly reset the drum.
 
 If `npm test` fails, fix it before opening Claude Code. Gate 0 decides everything the drum ever sees.
 
