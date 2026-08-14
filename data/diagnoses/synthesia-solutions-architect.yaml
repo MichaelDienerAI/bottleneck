@@ -1,0 +1,414 @@
+company: Synthesia
+role: Solutions Architect
+url: https://jobs.ashbyhq.com/synthesia/163816a3-11d0-4f20-b138-6629c73e3886
+archetype: conversational_ai
+archetype_match_confidence: medium
+# Synthesia sells AI video generation, not conversation. But its Interactive
+# Avatars beta is a real two-way voice product. The archetype fits that one
+# surface. It does not fit the rest of the company. Medium, not high.
+
+hypothesis_source: data/queue.json row ashby:Synthesia:163816a3-11d0-4f20-b138-6629c73e3886, posted '2025-11-21'
+time_started: '2026-08-13T00:00:00Z'
+
+dated: '2026-08-13'
+
+constraint_hypothesis:
+  weakest_link: >-
+    Synthesia produces no more live interactive-avatar deployments than its
+    slowest part, the closed-beta gate on Interactive Avatars, allows.
+  binding_part: >-
+    The closed beta on Interactive Avatars. A customer cannot turn it on. They
+    fill out a request form, and Synthesia picks who gets in. Each team that
+    gets in must then wire the avatar into their own LiveKit agent and their own
+    language model by hand.
+  output_capped: >-
+    The number of customers running two-way, real-time avatars in production.
+  confidence: medium
+
+acquittal: EVIDENCE_SUFFICIENT
+
+evidence:
+  - claim: >-
+      Synthesia gates Interactive Avatars behind a closed beta and says the four
+      things it is still testing are quality, latency, integration patterns, and
+      enterprise requirements. This is a specificity leak: a marketing page
+      normally hides what a product cannot do yet, and this one names it.
+    inspectable_at: https://www.synthesia.io/features/avatars/interactive-avatars
+    verify_seconds: 9
+    source_class: frontstage
+    strength: 4
+    specificity_leak: true
+
+  - claim: >-
+      Synthesia's public developer changelog shows five entries in total, and the
+      newest one is roughly eight months old as of 2026-08-13.
+    inspectable_at: https://docs.synthesia.io/changelog
+    verify_seconds: 6
+    source_class: backstage
+    strength: 4
+
+  - claim: >-
+      The Solutions Architect posting from 2025-11-21 is not in Synthesia's
+      public Ashby job board feed on 2026-08-13. Open the feed and search the
+      text for "Solutions Architect" and it is absent.
+    inspectable_at: https://api.ashbyhq.com/posting-api/job-board/synthesia
+    verify_seconds: 8
+    source_class: backstage
+    strength: 5
+
+  - claim: >-
+      Synthesia's Solutions Consulting team has one seat listed in the same feed,
+      Solutions Consultant in Austin, published 2025-02-12 and still open on
+      2026-08-13, which is eighteen months.
+    inspectable_at: https://api.ashbyhq.com/posting-api/job-board/synthesia
+    verify_seconds: 9
+    source_class: backstage
+    strength: 3
+
+disconfirming:
+  query_issued: >-
+    Two queries. First, a search for whether Synthesia already runs a staffed
+    services and partner organization that would absorb per-customer integration
+    work. Second, a direct read of docs.synthesia.io/docs/interactive-avatars
+    asking whether Interactive Avatars is general availability and callable with
+    a normal API key, which would mean no closed-beta gate exists.
+  result: >-
+    The first query killed my first hypothesis. Synthesia lists 21 or more
+    outside service providers and describes an internal services team with
+    hundreds of customer engagements, so hand integration work is not unstaffed.
+    I rewrote the hypothesis around the beta gate instead. The second query
+    returned a partial contradiction: the docs page uses the phrase "GA surface"
+    once, but only to scope plugin lifecycle events, and the product page still
+    says closed beta with a request-access form. The gate is real.
+  survived: true
+
+proof_match:
+  asset: persona_io
+  tier: sovereign
+  acts_on_constraint: true
+  mechanism: >-
+    Synthesia's beta asks each customer to attach the avatar to their own LiveKit
+    agent and their own language model. Persona iO is that same build, already
+    shipped and live: speech in, model, speech out, and a WebRTC avatar closing
+    the loop under 800ms across five vendors. It is a working answer to two of
+    the four things Synthesia says it is still testing, latency and integration
+    patterns.
+
+decision_maker:
+  name: ''
+  title: ''
+  reachable_via: 'No path found. The posting is off the public Ashby feed, so even the ATS route is closed.'
+  source: https://api.ashbyhq.com/posting-api/job-board/synthesia
+
+verdict: PARK
+reason: >-
+  The constraint is legible and a sovereign proof acts on it, but there is
+  nowhere to send a packet. Here is the chain. Synthesia raised $200 million in
+  January 2026 on a story about avatars that talk back. In August 2026 the page
+  for that product still says closed beta, and access runs through a form a human
+  reviews. So demand for interactive avatars is set by the funding story, and
+  supply is set by how many teams Synthesia can hand-onboard. That gap is the
+  bottleneck, meaning the one part whose capacity sits closest to its load and
+  therefore caps everything downstream. The obvious guess is that Synthesia needs
+  more implementation people. That guess is wrong, and I killed it with a query:
+  Synthesia already lists 21 or more outside service partners and an internal
+  services team. Bodies are not the missing piece. What is missing is a proven
+  reference build of the customer-side stack, so each new team stops solving the
+  same real-time wiring problem from scratch. Michael holds one, live, at
+  personaio.app. But the Solutions Architect role that opened on 2025-11-21 is
+  gone from the public feed as of 2026-08-13, and no named human is reachable, so
+  the decision-maker path runs entirely through an ATS that no longer lists the
+  job. Spending one of five weekly packet slots on a closed requisition is waste.
+  Park it. If Synthesia reopens a role on the Interactive Avatars surface, this
+  diagnosis is ready and the proof already exists. Note for the record: the queue
+  row is stale, which is a scanner problem worth fixing upstream.
+gaps:
+  - >-
+    No record shows whether the Solutions Architect role was filled or dropped.
+    An Ashby feed snapshot from between 2025-11-21 and 2026-08-13, or a named
+    Solutions Architect at Synthesia, would settle it. It matters because filled
+    and abandoned point at different constraints.
+  - >-
+    No public count exists of how many teams are in the Interactive Avatars beta.
+    A dated beta cohort number, or a general-availability announcement, would
+    turn my capacity estimate into a measured one. Right now the closed gate is
+    the only reading I have.
+  - >-
+    Michael has not run his own stopwatch against a Synthesia Interactive Avatar,
+    because access is gated by the request form. Until he does, the latency claim
+    rests on his own product, not on theirs. Submitting the early access form is
+    the cheapest way to close this gap.
+  - >-
+    No hiring manager name or title is known. Synthesia publishes no team page
+    for Solutions Consulting, and LinkedIn is out of bounds under project rules.
+
+audit:
+  dated: '2026-08-13'
+  coverage_score: 0.57
+  unanswered_question_numbers: [4, 5, 18, 20, 21, 22, 23, 24, 25, 26, 27, 28]
+  veto_results:
+    q9_link_behind_claim: true
+    q10_verify_under_60s: true
+    q13_source_beyond_posting: true
+    q19_staged_labeled: true
+    q20_agent_assisted_labeled: false
+  auditor_evidence:
+    - claim: >-
+        Synthesia's public status page monitors four things on 2026-08-13:
+        Editor, Video generation, Video Sharing, and Public API. It lists no
+        component for Interactive Avatars, for real-time sessions, or for
+        streaming. A product with paying production customers normally gets its
+        own monitored component. So the absence is separate support for the
+        claim that few or no customers run Interactive Avatars in production.
+        The diagnostician never opened this page.
+      inspectable_at: https://status.synthesia.io/
+      verify_seconds: 7
+      source_class: backstage
+      strength: 4
+    - claim: >-
+        Synthesia's own newsroom carries no announcement of a $200 million
+        January 2026 funding round. The only money figure on the page is a
+        Forbes headline calling Synthesia a $4 billion startup, with no round,
+        no amount, and no date. This is the record that would confirm the
+        funding claim in the reason field, and it does not carry it.
+      inspectable_at: https://www.synthesia.io/newsroom
+      verify_seconds: 12
+      source_class: frontstage
+      strength: 3
+    - claim: >-
+        Synthesia's developer docs present Interactive Avatars as generally
+        available and scope plugin lifecycle events "to the GA surface." The
+        marketing page says closed beta. Two Synthesia pages disagree about
+        whether the gate exists. I re-read this page because the diagnostician
+        cited it as its kill query and reported the contradiction as minor.
+        This URL is not my isolation row; the status page above is.
+      inspectable_at: https://docs.synthesia.io/docs/interactive-avatars
+      verify_seconds: 14
+      source_class: backstage
+      strength: 4
+  verdict: REJECT
+  gaps:
+    - >-
+      Citation isolation is met. The status page at status.synthesia.io is
+      backstage, the diagnostician never cited it, and it is the row that
+      changed my reading of the constraint.
+    - >-
+      Evidence row 3 held. I opened the Ashby feed myself on 2026-08-13 and
+      searched it. No posting carries the phrase "Solutions Architect." The feed
+      returns eight postings. Strength 5 and backstage are both correct, and the
+      PARK verdict rests on this row, which survives.
+    - >-
+      The quoted facts in evidence row 1 held. I opened the product page. It
+      says "Interactive Avatars is currently available through a closed beta
+      while we test quality, latency, integration patterns, and enterprise
+      requirements with selected teams." The row quotes it correctly. Only the
+      leak label failed.
+    - >-
+      The arithmetic in evidence row 4 held. 2025-02-12 to 2026-08-13 is
+      eighteen months. I attacked the number and could not break it.
+    - >-
+      I could not check the claim that Synthesia lists "21 or more outside
+      service providers" and an internal services team with hundreds of
+      engagements. That count appears in the disconfirming result and in the
+      reason field, and no evidence row cites a URL for it. It is the fact that
+      killed the first hypothesis, so it should carry a row of its own.
+    - >-
+      I could not date any changelog entry. The page prints relative ages, such
+      as "8 months ago," and not calendar dates. So the eight-month release gap
+      can be read but not pinned to a day.
+    - >-
+      I could not tell which Synthesia surface is current. The developer docs
+      read as generally available and the marketing page reads as closed beta.
+      A dated release note, or a changelog entry moving Interactive Avatars to
+      general availability, would settle it. Neither exists.
+    - >-
+      Q19 passes on a technicality, and the writer should know why. This
+      diagnosis matches only persona_io, which is deployed. It never claims the
+      Calibration Layer or the Aline backend. Q19 catches a staged thing sold as
+      shipped, and no staged thing is sold here. Silence passes because nothing
+      was claimed. The moment a packet adds the Aline backend, the Calibration
+      Layer must be labeled staged or Q19 flips to false.
+
+strikes:
+  claims_tested: 18
+  claims_struck: 7
+  struck:
+    - claim: >-
+        Evidence row 1: "This is a specificity leak: a marketing page normally
+        hides what a product cannot do yet, and this one names it."
+      reason: >-
+        This fails the prove-the-claim test on the label, not on the facts. A
+        leak is a place where a company lost control of its own story. This page
+        did not lose control. It names its limits twice on purpose. Once in the
+        beta notice, and again lower down: "We are actively improving quality,
+        expressiveness, listening behaviors, interruption handling, latency, and
+        repeatability across sessions." Copy that repeats its own limits in two
+        places is on message. Synthesia wrote it to set expectations and to
+        filter who asks for access. Nothing slipped out. Deleting the word
+        "leak" and keeping strength 4 does not save the row either. Strength 4
+        means nearly sovereign, and a vendor page describing a vendor product is
+        the vendor's account of itself. What survives is narrower and still
+        useful. A company is the primary record of its own access policy, so the
+        page is good evidence that a closed beta exists. It is not evidence of
+        what the product cannot do.
+      rewrite: >-
+        Synthesia's product page says Interactive Avatars runs as a closed beta
+        and that access runs through an early access form a human reviews. The
+        page names four things Synthesia is testing: quality, latency,
+        integration patterns, and enterprise requirements. This is Synthesia
+        describing its own access policy, which is the strongest available
+        source for that one fact. Set strength to 3 and remove specificity_leak.
+    - claim: >-
+        Evidence row 2: "Synthesia's public developer changelog shows five
+        entries in total."
+      reason: >-
+        This fails the prove-the-claim test on the only countable fact in the
+        row. I opened the changelog and counted four entries: "Synthesia APIs
+        are generally available," two entries titled "API Improvements," and
+        "New Dubbing & Assets APIs." A stranger who counts gets four. The row
+        says five. Changing five to four does not repair the row by itself. The
+        entry count was never the load-bearing part, the release gap was, and
+        the page prints relative ages instead of calendar dates, so "roughly
+        eight months" is as precise as the source allows and the row should say
+        so out loud. What survives is the gap. Synthesia has not shipped a
+        documented change to its developer surface in about eight months, and
+        that is the fact that speaks to the constraint.
+      rewrite: >-
+        Synthesia's public developer changelog shows four entries. The newest
+        one is labeled about eight months old when read on 2026-08-13, so the
+        developer surface has shipped no documented change since roughly
+        December 2025. The page prints relative ages, not calendar dates, so the
+        gap can be read but not pinned to a day.
+    - claim: >-
+        Evidence row 4: "Solutions Consultant in Austin, published 2025-02-12
+        and still open on 2026-08-13, which is eighteen months."
+      reason: >-
+        This fails the prove-the-claim test in two places, though not on the
+        math. The math is right. First, the feed lists that seat in Austin with
+        New York City as a second location. The row names only Austin, so a
+        stranger who opens the feed sees something different from what the row
+        says. Second, one read of a live feed shows the seat is listed today and
+        carries a publishedAt of 2025-02-12. It does not show the seat stayed
+        open for eighteen straight months. Ashby keeps publishedAt across edits,
+        and this artifact's own row 3 proves the feed drops and changes rows over
+        time. Just deleting the words "still open" does not fix it. The location
+        is still wrong, and a reader would still take the row as an
+        aging-vacancy signal that no single snapshot can support. What survives
+        is what the feed actually shows on one day, plus the missing record named
+        out loud.
+      rewrite: >-
+        Synthesia's Ashby feed lists one Solutions Consulting seat: Solutions
+        Consultant, in Austin, with New York City as a second location. Its
+        publishedAt is 2025-02-12, and it is still listed on 2026-08-13, which is
+        eighteen months later. No dated snapshot shows whether the seat stayed
+        open that whole time, so this is one reading, not a history.
+    - claim: >-
+        disconfirming.result: "The second query returned a partial contradiction
+        ... and the product page still says closed beta with a request-access
+        form. The gate is real."
+      reason: >-
+        This fails the prove-the-claim test. The kill query worked. It found a
+        real contradiction, and the artifact then argued the contradiction away.
+        I read the developer docs myself. They present Interactive Avatars as
+        generally available, and the phrase "GA surface" scopes plugin lifecycle
+        events for the LiveKit Agents integration. The marketing page says closed
+        beta. Two Synthesia pages disagree. The artifact picked the marketing
+        page and wrote "The gate is real." That reverses this system's own order
+        of proof. A developer doc is backstage and a marketing page is
+        frontstage, and frontstage never outranks backstage. Calling the docs
+        stale does not repair it, because no record here dates either page, so
+        staleness is a guess pointed in the direction the hypothesis was already
+        going. What survives is the contradiction itself, stated, plus the record
+        that would end it. The hypothesis is wounded, not dead, so survived
+        should read false and confidence should drop to low.
+      rewrite: >-
+        The first query killed my first hypothesis. I rewrote the hypothesis
+        around the beta gate instead. The second query hurt the new one. The
+        developer docs read as generally available and scope plugin events "to
+        the GA surface," while the marketing page says closed beta and points at
+        an early access form. Two Synthesia surfaces disagree about whether the
+        gate exists. Nothing dates either page, so I cannot say which one is
+        current. A changelog entry moving Interactive Avatars to general
+        availability would settle it, and no such entry exists. Set survived to
+        false and confidence to low.
+    - claim: >-
+        binding_part: the demand half of the argument, stated in reason as
+        "Synthesia raised $200 million in January 2026 ... So demand for
+        interactive avatars is set by the funding story."
+      reason: >-
+        This fails the prove-the-claim test and breaks P4. P4 says never assert
+        that one thing causes another unless a dated record shows both. No
+        evidence row cites the funding round. I checked Synthesia's own newsroom
+        and press pages and found no funding announcement at all. The only money
+        figure there is a Forbes headline calling Synthesia a $4 billion startup,
+        with no round, no amount, and no date. So there is no dated record for
+        the raise. Adding a funding link would fix half of this and leave the
+        worse half standing. Even a confirmed round does not show that customer
+        demand for one beta product went up, because no dated record connects the
+        money to demand for Interactive Avatars. CLAUDE.md is also plain here:
+        never state a company's constraint without a URL behind it. What survives
+        is the supply side, which does have records. The gate exists, and the
+        release gap is real.
+      rewrite: >-
+        Synthesia gates Interactive Avatars behind a closed beta, and a human
+        reviews each request. That sets how fast new teams can go live. Each team
+        that gets in must wire the avatar into its own LiveKit agent and its own
+        language model. That is the slow part, and it is the part Michael's proof
+        acts on. I have no dated record of a funding round, so I make no claim
+        about what raised demand.
+    - claim: >-
+        output_capped: "The number of customers running two-way, real-time
+        avatars in production."
+      reason: >-
+        This fails the constraint test and breaks P3. P3 says never treat a limit
+        you have not reached as a constraint. The unit is countable, which is
+        good. Nobody has counted it, which is the problem. The artifact's own gap
+        2 admits no public count exists of how many teams are in the beta. My own
+        check adds to this: Synthesia's status page monitors four things, and
+        Interactive Avatars is not one of them, which fits a product with almost
+        nobody on it in production. A closed beta with a review form is a policy
+        Synthesia chose. It only becomes a bottleneck, meaning the one part whose
+        capacity sits closest to its load, if more teams ask to get in than
+        Synthesia can onboard. No record shows the size of that line. Swapping in
+        a different countable output does not fix it. The missing thing is the
+        load on the gate, not the unit of measure.
+      rewrite: >-
+        The number of customers running two-way, real-time avatars in production.
+        No public record gives that number today, and no public record gives the
+        number of teams waiting for access. So I can show the gate exists and I
+        cannot show it is full. Confidence is low until a dated beta cohort count
+        or a general-availability announcement appears.
+    - claim: >-
+        proof_match mechanism: "Persona iO is that same build, already shipped
+        and live: speech in, model, speech out, and a WebRTC avatar closing the
+        loop under 800ms across five vendors."
+      reason: >-
+        This fails the promise-versus-reality test and the what-do-we-control
+        test, and it is the reason this packet is rejected. Three problems.
+        First, the proof ledger's known_gaps says the engineering work is
+        agent-assisted, that Michael directs Claude Code while owning
+        requirements, vendor choice, test design, and acceptance, and that this
+        must be stated plainly. The mechanism says "already shipped and live" and
+        says nothing about how it was built. That is question 20, and question 20
+        is a veto. Second, "under 800ms" is a number with no measurement behind
+        it. A stranger cannot check 800ms by opening personaio.app. They would
+        have to use the product and time it, and no method, no date, and no
+        percentile is given. Third, "across five vendors" counts the vendors
+        without naming them, so a reader cannot see that the pipeline stops when
+        Anthropic, ElevenLabs, Deepgram, or Simli stops. Adding the words
+        "agent-assisted" alone does not repair this. The number still has no
+        source and the vendors are still unnamed. What survives is the build
+        itself, which is deployed, inspectable, and shaped like what Synthesia
+        asks each beta customer to build.
+      rewrite: >-
+        Synthesia's beta asks each customer to attach the avatar to their own
+        LiveKit agent and their own language model. Michael already built that
+        stack and it runs live at https://personaio.app: speech in, language
+        model, speech out, and a WebRTC avatar closing the loop. The work is
+        agent-assisted. Michael directs Claude Code and owns the requirements,
+        the vendor choices, the test design, and the acceptance. The pipeline
+        depends on Anthropic, ElevenLabs, Deepgram, and Simli staying available
+        and priced as they are, so an outage at any one of them stops it. Michael
+        measures round-trip latency under 800ms, and that figure is his own
+        measurement, not a published benchmark. State the method and the date, or
+        drop the number.
