@@ -225,8 +225,33 @@ function vendorDeps(d, ledger) {
 // convention rather than a contract, so anything unparsed falls through to its
 // own section instead of being dropped. A struck claim that renders as unstruck
 // is the one failure this page must not have.
+// The prefix table in .claude/agents/auditor.md, anchored at the start of the
+// string and tested in priority order, so a strike naming its own target is read
+// as naming it even when it quotes another field later on.
+const PREFIXES = [
+  [/^evidence rows?\s+(\d+)(?:\s*(?:and|,|&)\s*(\d+))?/i, 'evidence'],
+  [/^gaps?\s+(\d+)/i, 'gap'],
+  [/^(?:binding_part|output_capped|constraint_hypothesis)\b/i, 'constraint'],
+  [/^proof_match\b|^proof\b/i, 'proof'],
+  [/^disconfirming\b/i, 'kill'],
+];
+
 function targetOf(claim) {
   const t = String(claim ?? '').replace(/\s+/g, ' ').trim();
+
+  for (const [re, kind] of PREFIXES) {
+    const m = t.match(re);
+    if (!m) continue;
+    if (kind === 'evidence') {
+      const idx = [m[1], m[2]].filter(Boolean).map((n) => Number(n) - 1);
+      return { kind, idx };
+    }
+    if (kind === 'gap') return { kind, idx: [Number(m[1]) - 1] };
+    return { kind, idx: [] };
+  }
+
+  // Fallback for artifacts written before the prefix was mandated: scan anywhere
+  // in the string. Looser, so it runs only after the anchored pass fails.
   const rows = [...t.matchAll(/\bevidence rows?\s+(\d+)(?:\s*(?:and|,|&)\s*(\d+))?/gi)];
   if (rows.length) {
     const idx = new Set();
@@ -235,16 +260,23 @@ function targetOf(claim) {
   }
   const gap = t.match(/\bgaps?\s+(\d+)/i);
   if (gap) return { kind: 'gap', idx: [Number(gap[1]) - 1] };
-  if (/^binding_part|^output_capped|^constraint_hypothesis|\bconfidence:\s*medium/i.test(t))
-    return { kind: 'constraint', idx: [] };
-  if (/^proof_match|^proof\b/i.test(t)) return { kind: 'proof', idx: [] };
-  if (/^disconfirming/i.test(t)) return { kind: 'kill', idx: [] };
+  if (/\bbinding_part\b|\boutput_capped\b/i.test(t)) return { kind: 'constraint', idx: [] };
+  if (/\bproof_match\b/i.test(t)) return { kind: 'proof', idx: [] };
+  if (/\bdisconfirming\b/i.test(t)) return { kind: 'kill', idx: [] };
   return { kind: 'unmatched', idx: [] };
 }
 
+// A row that opens by declaring it was NOT struck is not a strike, whatever array
+// it was filed in. Rendering one as struck would show a claim as killed that the
+// auditor explicitly recorded as surviving, which inverts the finding. Pull them
+// out before anything else looks at them.
+const NOT_STRUCK = /^\s*(?:not[ _-]?struck|survived|not a strike)\b/i;
+
 function distributeStrikes(evidence, strikes) {
-  const struck = strikes?.struck || [];
-  const buckets = { constraint: [], proof: [], kill: [], unmatched: [] };
+  const all = strikes?.struck || [];
+  const survived = all.filter((s) => NOT_STRUCK.test(String(s.claim ?? '')));
+  const struck = all.filter((s) => !NOT_STRUCK.test(String(s.claim ?? '')));
+  const buckets = { constraint: [], proof: [], kill: [], unmatched: [], survived };
   const byRow = new Map();
   const byGap = new Map();
 
@@ -262,7 +294,7 @@ function distributeStrikes(evidence, strikes) {
   }
 
   const rows = evidence.map((e, i) => ({ ...e, strikes: byRow.get(i) || [] }));
-  return { rows, byGap, ...buckets };
+  return { rows, byGap, struckCount: struck.length, ...buckets };
 }
 
 // ---------------------------------------------------------------- markdown
@@ -683,6 +715,19 @@ function render(ctx) {
                : ''
            }
            ${
+             ctx.survived.length
+               ? `<p class="small" style="margin-top:14px"><span class="cls">Attacked and survived</span></p>
+                  <ul class="gaps">${ctx.survived
+                    .map(
+                      (s) =>
+                        `<li>${esc(String(s.claim).replace(NOT_STRUCK, '').replace(/^[,:\s]+/, ''))}<br><span class="mutedtext">${esc(
+                          s.reason || ''
+                        )}</span></li>`
+                    )
+                    .join('')}</ul>`
+               : ''
+           }
+           ${
              unmatched.length
                ? `<p class="small" style="margin-top:10px">Struck claims not matched to an evidence row above:</p>
                   <ul class="gaps">${unmatched
@@ -860,6 +905,7 @@ const html = render({
   proofStrikes: st.proof,
   killStrikes: st.kill,
   gapStrikes: st.byGap,
+  survived: st.survived,
   strikes: d.strikes || null,
   audit: d.audit || null,
 });
@@ -883,13 +929,18 @@ if (!cl.cleared) console.log('  NOT CLEARED for a packet. Rendered with the draf
 if (cl.dmMissing) console.log('  Decision-maker name is unresolved, which blocks a packet on one lookup.');
 
 if (d.strikes?.struck?.length) {
-  const rows = d.strikes.struck.length;
+  const rows = st.struckCount;
   const landed = rows - st.unmatched.length;
   console.log(`  ${rows} strikes: ${landed} placed on the claim they hit, ${st.unmatched.length} listed separately`);
-  // claims_struck is the auditor's own count. If it disagrees with the rows it
-  // wrote, one of the two is wrong and the page is showing the rows.
+  if (st.survived.length) {
+    console.log(
+      `  ${st.survived.length} row${st.survived.length === 1 ? '' : 's'} in \`struck\` declare NOT STRUCK. Shown as attacked and survived, not as strikes.`
+    );
+  }
+  // claims_struck is the auditor's own count. If it disagrees with the rows that
+  // are actually strikes, one of the two is wrong and the page shows the rows.
   if (d.strikes.claims_struck != null && Number(d.strikes.claims_struck) !== rows) {
-    console.log(`  claims_struck says ${d.strikes.claims_struck} but ${rows} struck rows are listed. The rows are shown.`);
+    console.log(`  claims_struck says ${d.strikes.claims_struck} but ${rows} strikes are listed. The rows are shown.`);
   }
 }
 

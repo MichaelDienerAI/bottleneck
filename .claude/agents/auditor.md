@@ -129,11 +129,50 @@ The strike record — what you tested, what you killed, and the defensible rewri
 ```yaml
 strikes:
   claims_tested:
-  claims_struck:
+  claims_struck:                    # must equal the number of rows in `struck`
   struck:
-    - claim:
+    - claim:                        # MUST open with a target prefix. see below
       reason:
       rewrite:                      # the defensible version, or null if it cannot be saved
 ```
 
 A struck claim with no rewrite and no reason is an assertion of taste. Name which of the three tests it failed.
+
+**Every `claim` opens with the target it hits.** `src/renderBrief.js` reads that
+prefix to draw the strike on the row it belongs to, so a strike written without one
+gets listed in a footnote instead of striking anything. The reader then sees the
+original claim standing unmarked, which is the one failure the rendered page must
+not have. Use exactly these forms, at the very start of the string:
+
+| Prefix | Hits |
+| --- | --- |
+| `binding_part:` | the named part in `constraint_hypothesis` |
+| `output_capped:` | what the constraint caps |
+| `Evidence row N:` | one evidence row, counting from 1 in file order |
+| `Evidence rows N and M:` | two rows at once, when one strike kills both |
+| `disconfirming.result:` | the kill-query result or the survival claim |
+| `proof_match asset:` / `proof_match mechanism:` / `proof_match honest_shortfall:` | that field |
+| `Gap N:` | one entry in `gaps`, counting from 1 |
+
+Write the prefix even when the target is obvious from the quote that follows. The
+parser is a string match, not a reader, and "obvious" is not a format.
+
+**`struck` holds struck claims and nothing else.** A claim you attacked and could
+not kill did not get struck, and it does not belong in this array. Filing it here
+with a `NOT STRUCK` note has already happened once, and it does two kinds of
+damage: `claims_struck` stops matching the array length, and any reader or tool
+counting rows reports a claim as killed that you recorded as surviving. That
+inverts the finding. A survivor goes in `gaps` — "attacked X on Y grounds, it held"
+— which is where a reader looks for what you could not settle. A coverage defect
+with no claim attached goes in `gaps` too, or in `unanswered_question_numbers`
+where the filing standard already has a slot for it.
+
+**`claims_struck` equals the number of rows in `struck`.** Not the number of
+distinct problems you found, not the count before you merged two rows, not the
+number you had in mind before writing them out. Count the rows and write that
+integer. Nothing in code enforces this — the audit schema closes at seven keys and
+`strikes` is a sibling block outside it — so a wrong count is caught only when
+someone reads the file and notices the arithmetic does not hold, which is the worst
+place to catch anything. `renderBrief.js` prints a warning when the two disagree,
+pulls any `NOT STRUCK` row out into its own section, and shows the rows, because
+the rows are the evidence and the count is a summary of them.

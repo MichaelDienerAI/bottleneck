@@ -21,11 +21,22 @@ function saveLedger(rows, root = ROOT) {
   fs.writeFileSync(path.join(root, LEDGER), JSON.stringify(rows, null, 2) + '\n');
 }
 
+// Local, not UTC, all the way through. getDay and setDate read local time, so
+// formatting the result with toISOString mixed two clocks: in any zone behind UTC
+// the conversion pushed the date forward once local time passed midnight-minus-
+// offset, and the same Thursday evening returned Tuesday instead of Monday. That
+// silently reset the drum — openSlots compares each ledger row's week against
+// this, so after about 5pm Phoenix time no row matched the current week and five
+// spent slots read as five open ones. A week is a human unit and belongs on the
+// human's clock.
+const localDate = (d) =>
+  `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+
 export function weekStart(d = new Date()) {
   const x = new Date(d);
   const day = (x.getDay() + 6) % 7; // monday = 0
   x.setDate(x.getDate() - day);
-  return x.toISOString().slice(0, 10);
+  return localDate(x);
 }
 
 export function openSlots(root = ROOT, cfg = null) {
