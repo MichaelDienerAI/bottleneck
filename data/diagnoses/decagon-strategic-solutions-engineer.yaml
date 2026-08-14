@@ -1,0 +1,629 @@
+company: Decagon
+role: Strategic Solutions Engineer, East
+url: https://jobs.ashbyhq.com/decagon/6431a6f9-2ebe-4b68-beb6-200b42aeeca8
+archetype: agentic_startups
+archetype_match_confidence: medium
+# The queue filed Decagon under agentic_startups. Decagon's own homepage calls it
+# "the leading conversational AI platform." It sells AI agents that answer
+# customer support across voice, chat, email, and SMS. So it sits between
+# agentic_startups and conversational_ai and lands cleanly in neither. Medium,
+# not high. Not forced into either bin.
+
+hypothesis_source: >-
+  data/queue.json index 7, row ashby:Decagon:6431a6f9-2ebe-4b68-beb6-200b42aeeca8,
+  posted '2026-07-01', fetched '2026-08-13'
+time_started: '2026-08-13T00:00:00Z'
+
+gate0_check:
+  flags_on_row: []
+  blocking_flags_array_read_at: >-
+    src/gates.js lines 223-229 (the BLOCKING_FLAGS array) and lines 238-240
+    (blockingFlags(), which tests startsWith against that array). Read on
+    '2026-08-13'.
+  blocking_prefixes_confirmed:
+    - 'relocation_cost:'
+    - 'country_only:'
+    - 'remote_unverified:'
+    - 'comp:unknown'
+    - 'posted:unknown'
+  result: >-
+    No blocking flag fires. The flags array on the row is empty. The row
+    publishes a comp band of 240,000 to 280,000 USD, so comp:unknown does not
+    apply. The row publishes a posted date of 2026-07-01, age 43 days, so
+    posted:unknown does not apply. The location string is "Remote" with no city
+    and no office word in it, so remote_unverified does not apply. Gate 0 does
+    not veto this row.
+  unpriced_cost_the_gate_could_not_see: >-
+    The gate reads the location string. It does not read the posting body. The
+    body says "We're an in-office company, driven by a shared commitment to
+    excellence and velocity." The benefits list adds "Daily lunches and snacks in
+    the office." The title names a sales territory, "East." Decagon's public job
+    feed puts almost every other open role in San Francisco, and the only other
+    Remote role is Strategic Account Director - West, which is also a territory
+    seat. So this seat reads as remote because it covers the East Coast, not
+    because Decagon works remotely. Michael prefers Phoenix, AZ until
+    2026-12-31, per the relocation_cost note on the Character.AI rows in
+    data/queue.json. Phoenix is not the East territory. No public record says
+    whether Decagon would take a Phoenix-based East seat, and none says how much
+    travel the seat carries. I am not inventing a flag and I am not resolving
+    this. I am recording it as an unpriced cost. It does not block under
+    BLOCKING_FLAGS. It does count against the verdict.
+
+dated: '2026-08-13'
+
+constraint_hypothesis:
+  weakest_link: >-
+    Decagon produces no more enterprise proof-of-concept demos than its slowest
+    part, its Solutions Engineering team, allows.
+  binding_part: >-
+    Decagon's Solutions Engineering team. A buyer cannot try Decagon alone. The
+    only buttons on decagon.ai are "Get a demo" and "Sign in." There is no trial,
+    no signup, and no sandbox. So a Decagon engineer has to hand-build a demo for
+    each enterprise buyer before that buyer can watch the product work on their
+    own data.
+  output_capped: >-
+    The number of enterprise buyers Decagon can put a working custom demo in
+    front of at one time.
+  confidence: medium
+
+acquittal: EVIDENCE_SUFFICIENT
+
+evidence:
+  - claim: >-
+      Decagon's public status page logged three separate service problems in the
+      first ten days of August 2026. The longest ran 3 hours and 21 minutes
+      across August 9 and 10 under the title "Investigating Issue with Certain
+      Voice Conversations," and Decagon closed it on August 11 at 1:38am UTC. The
+      earlier two ran 1 hour 7 minutes on August 4 to 5 and 37 minutes on August
+      2 to 3. The page also shows Decagon runs four channels, voice plus chat,
+      email and SMS, in a US region and an EU region, each with a customer-facing
+      Admin Portal. A status page is an involuntary record, so this is what the
+      product actually did. It matters to this diagnosis in one narrow way: it
+      dates the condition of the surface a Solutions Engineer has to demo. It
+      does not by itself prove anything about demo capacity.
+    inspectable_at: https://status.decagon.ai/
+    verify_seconds: 8
+    source_class: backstage
+    strength: 5
+
+  - claim: >-
+      Decagon's public Ashby job feed on 2026-08-13 carries a department named
+      "Deployment Strategists." Its Sales department holds an Enterprise Account
+      Executive, a Director of Sales Enterprise, a Strategic Account Director -
+      West, and a Senior Solutions Engineer whose publishedAt is 2025-05-05. Only
+      two roles sit in Engineering: Senior Research Engineer and Engineering
+      Manager, Agent Orchestration. So Decagon spends most of its open headcount
+      on selling and deploying, not on building. Search the JSON for the string
+      "Deployment Strategists" to check this.
+    inspectable_at: https://api.ashbyhq.com/posting-api/job-board/decagon
+    verify_seconds: 12
+    source_class: backstage
+    strength: 4
+
+  - claim: >-
+      The newest role on Decagon's public job feed is a Senior Technical Sourcer,
+      publishedAt 2026-08-12, one day before this reading. Decagon hired a
+      recruiter to hire. A company buys hiring capacity when its growth plan runs
+      on adding people.
+    inspectable_at: https://api.ashbyhq.com/posting-api/job-board/decagon
+    verify_seconds: 12
+    source_class: backstage
+    strength: 4
+
+  - claim: >-
+      Decagon's homepage offers no way to try the product. The only calls to
+      action are "Get a demo" and "Sign in," plus "Register today" for its own
+      event. There is no trial, no signup, and no sandbox. A company is the best
+      record of its own access policy, so this settles that one fact and nothing
+      more. The same page shows 17 customer logos, including Chime, Cash App,
+      American Airlines, Duolingo, Riot Games, Deutsche Telekom, Rippling, Oura,
+      and Live Nation.
+    inspectable_at: https://decagon.ai/
+    verify_seconds: 6
+    source_class: frontstage
+    strength: 3
+
+  - claim: >-
+      The posting contradicts its own location field, and that is a leak. The
+      body says "We're an in-office company, driven by a shared commitment to
+      excellence and velocity," and the benefits list "Daily lunches and snacks
+      in the office," while the location field says "Remote" and the title names
+      the "East" territory. A careers page controls its own wording. This one let
+      two opposite facts sit on the same page, which tells a reader the seat is
+      remote because of the territory, not because of the company. The body also
+      names the demo work directly: "Develop custom demonstrations using the
+      Decagon platform tailored to a customer's specific needs and value."
+    inspectable_at: https://jobs.ashbyhq.com/decagon/6431a6f9-2ebe-4b68-beb6-200b42aeeca8
+    verify_seconds: 12
+    source_class: frontstage
+    strength: 3
+    specificity_leak: true
+
+  - claim: >-
+      This row cuts against my own hypothesis and I am filing it anyway. Decagon
+      sells a product called Agent Operating Procedures. Its page says AOPs
+      "empower CX teams to build and refine AI logic faster, without engineering
+      or vendor bottlenecks," and offers this "Instead of complex SDKs or costly
+      professional services." So Decagon claims its customers change their own
+      agents without Decagon staff. This is Decagon's own product page. It is the
+      company describing itself to buyers, so it cannot show how the delivery
+      pipeline really runs, and it says nothing about how a buyer gets a first
+      demo.
+    inspectable_at: https://decagon.ai/product/aop
+    verify_seconds: 9
+    source_class: frontstage
+    strength: 2
+
+disconfirming:
+  query_issued: >-
+    Two queries, both issued after the hypothesis was written. First, I asked
+    whether a prospect can try Decagon without talking to a human. If a trial or
+    a sandbox exists, no engineer is needed to produce a first demo and the
+    hypothesis dies. Second, I asked whether Decagon customers build and change
+    their own agents without Decagon staff. If they do, then Decagon's growth is
+    not gated on per-account humans and the wider version of my hypothesis dies.
+  result: >-
+    Split, and the second query hurt me. The first query held. Decagon's homepage
+    carries only "Get a demo" and "Sign in." No trial, no signup, no sandbox. The
+    second query killed the wording I started with. My first draft said a
+    customer "cannot build an agent by itself." Decagon's Agent Operating
+    Procedures page says the opposite: customers define agent behavior in plain
+    language "without engineering or vendor bottlenecks," and Decagon published a
+    post titled "What great self-serve actually looks like" by Katherine Xiao,
+    Director of Implementations, dated 2025-05-04. I am not arguing that away.
+    Both pages are Decagon's own marketing, which is frontstage, and frontstage
+    does not outrank the backstage fact that Decagon runs a Deployment
+    Strategists department. But they do narrow me. I dropped the broad claim and
+    rewrote the binding part around the one stretch those pages never touch: how
+    a buyer gets a first demo before becoming a customer. That narrower claim
+    survived. Confidence stays at medium, not high, because of this.
+  survived: true
+
+proof_match:
+  asset: persona_io
+  tier: sovereign
+  acts_on_constraint: false
+  mechanism: >-
+    Persona iO does not act on this part, and saying it does would be the same
+    error the Gray Swan artifact was struck for. The binding part is enterprise
+    pre-sales demo capacity: building a demo on Decagon's own platform, wired to
+    a buyer's knowledge base and support systems, and explaining it to C-level
+    buyers. Persona iO is a from-scratch real-time voice pipeline Michael built
+    and shipped solo, live at https://personaio.app, across Anthropic,
+    ElevenLabs, Deepgram, Simli, and Supabase. The work is agent-assisted:
+    Michael directs Claude Code and owns the requirements, the vendor choices,
+    the test design, and the acceptance. It proves he can build a working
+    conversational agent alone and fast. It does not prove he can build one on
+    someone else's platform, against an enterprise customer's systems, in a sales
+    cycle. Those are two different machines. Michael's ledger holds no pre-sales
+    record at all, and the posting asks for 4 to 6 years of customer-facing
+    pre-sales work.
+
+decision_maker:
+  name: ''
+  title: >-
+    Not established. Decagon's public job feed shows a team named "Solutions
+    Engineering" inside its Sales department, so a Solutions Engineering leader
+    exists. No public Decagon page names that person or that title. I found one
+    named Decagon delivery leader: Katherine Xiao, Director of Implementations,
+    bylined on a post dated 2025-05-04. Implementations is post-sales work. She
+    is not the hiring manager for a pre-sales seat and must not be treated as
+    one.
+  reachable_via: >-
+    The only published application path is the Ashby form. No non-ATS route
+    found.
+  source: https://decagon.ai/blog/self-serve
+
+verdict: PARK
+reason: >-
+  Why it is stuck. Decagon sells only through people. The only button on
+  decagon.ai is "Get a demo." A buyer cannot sign up, start a trial, or open a
+  sandbox. So before any enterprise buyer watches Decagon work on their own data,
+  a Decagon Solutions Engineer has to build that demo by hand. Every deal passes
+  through that one team. That makes Solutions Engineering the bottleneck here,
+  meaning the one part whose capacity sits closest to its load, so it caps
+  everything behind it. The rest of the public record fits. Decagon's job feed
+  puts an Account Executive, a Director of Sales, a Strategic Account Director,
+  and a Senior Solutions Engineer in Sales, runs a whole department called
+  Deployment Strategists, and carries only two engineering roles. The newest
+  posting of all is a Senior Technical Sourcer, published 2026-08-12. Decagon
+  hired a recruiter to hire. That is what a company does when its growth plan runs
+  on adding people rather than on adding a mechanism.
+
+  How a fix would work, and the wrong guess. The obvious guess is that Decagon
+  needs more Solutions Engineers, and that is exactly what this posting buys.
+  Headcount is the most expensive way to buy capacity, which is why a company only
+  spends it where it has no cheaper option. The cheaper fix is a starter demo a
+  buyer can drive alone, so the engineer joins a conversation already in progress
+  instead of starting one. Decagon already believes in that direction for
+  customers it has signed: its Agent Operating Procedures page promises plain
+  language editing "without engineering or vendor bottlenecks." Nothing public
+  points that product at buyers who have not signed yet. The front door is still a
+  form. Mark this as inference, not observation: I can show the gate exists and I
+  cannot count how many buyers are waiting behind it. That is why confidence is
+  medium.
+
+  What to do with the evidence. Do not spend a packet slot here. Michael's
+  strongest sovereign proof, meaning a deployed artifact a stranger can inspect
+  without asking him for anything, is Persona iO. It proves he can build a
+  real-time voice agent solo and ship it. It does not prove he can run an
+  enterprise pre-sales cycle on someone else's platform, and that is the part this
+  role is hired to relieve. Two other costs point the same way. The posting asks
+  for 4 to 6 years of customer-facing pre-sales work, and Michael's ledger has
+  none. The posting also says "We're an in-office company" while the location
+  field says "Remote," and the title names the East territory, which is not
+  Phoenix. Park the row. If Decagon opens a role on its voice runtime or on
+  evaluating agent behavior, Persona iO and the adversarial evaluation harness
+  both act on those parts, and this diagnosis is already half written.
+gaps:
+  - >-
+    Two evidence rows verify in about 12 seconds, over the ten-second bar, and I
+    am flagging them rather than rounding down. The two job-feed rows point at a
+    large JSON file, so a stranger has to load it and search inside it. The
+    rendered board at https://jobs.ashbyhq.com/decagon would be faster, but it
+    draws itself in the browser and my fetch returned only the page title, so I
+    did not cite a page I could not read. The status page row and the homepage row
+    both verify in under 10 seconds and they carry the argument.
+  - >-
+    I could not read the target posting myself. The Ashby posting page draws
+    itself in the browser and my fetch returned nothing. The posting text I quote
+    comes from Decagon's own board API feed as captured in data/queue.json. I am
+    saying so rather than pretending I opened the page. A saved copy of the
+    rendered posting would settle it.
+  - >-
+    I could not confirm the target posting is in Decagon's live board feed. My
+    three fetches of the feed truncated before the array closed, returning 8 to 9
+    readable entries out of a stated 10, so the posting may simply sit in the part
+    I never saw. I am not claiming it was delisted. The scanner's own record says
+    verified_live_at 2026-08-13 via the Ashby board API with url_check 200, and
+    that dated record beats my truncated read. An untruncated feed capture would
+    settle it.
+  - >-
+    Decagon's developer docs at docs.decagon.ai draw themselves in the browser and
+    every fetch returned empty, including the raw-text paths. So I have no release
+    notes, no changelog, and no API reference diff for Decagon. That is the single
+    biggest hole here. A dated changelog would show whether the platform is
+    shipping fast enough to shrink the per-customer human work, and I cannot see
+    it.
+  - >-
+    Nobody has counted the thing I say is capped. No public record gives the
+    number of enterprise buyers waiting for a Decagon demo, and none gives the
+    number of Solutions Engineers Decagon has. I can show the gate and I cannot
+    show the line behind it. A named count of the Solutions Engineering team, or a
+    dated pipeline figure, would turn this from medium confidence into high.
+  - >-
+    Michael took no measurement of Decagon's live product. Decagon powers public
+    support chat for named brands, so a real reading is reachable: open a customer
+    support widget on one of the 17 logo sites and run the Deformation Test Bank
+    protocol against it. My tools cannot hold a live chat session, so I could not
+    do it. This is the cheapest gap to close and it would be the strongest single
+    row in the file.
+  - >-
+    The Deformation Test Bank is the asset that would make such a measurement
+    citable, and it still cannot lead anything. profile/proof-ledger.yaml records
+    its inspect_at as TODO_PUBLIC_URL, so no stranger can open it. Publishing it at
+    a real URL is a standing blocker across this whole search, not just this row.
+  - >-
+    No hiring manager is named. Decagon publishes no team page and no leadership
+    page that names a Solutions Engineering leader. A recruiter reply naming the
+    manager would settle it. It matters because the packet has nowhere to go
+    without one, and that alone would hold this at PARK even if the proof matched.
+  - >-
+    The in-office versus Remote contradiction is unpriced, not resolved. No record
+    says whether Decagon accepts a Phoenix-based engineer on an East territory, and
+    none states the travel load. One recruiter question would settle it. Until
+    then it stays a cost, not a fact.
+
+audit:
+  dated: '2026-08-13'
+  coverage_score: 0.54
+  unanswered_question_numbers: [1, 3, 4, 14, 15, 16, 17, 23, 24, 25, 26, 27, 28]
+  veto_results:
+    q9_link_behind_claim: true
+    q10_verify_under_60s: true
+    q13_source_beyond_posting: true
+    q19_staged_labeled: true
+    q20_agent_assisted_labeled: true
+  auditor_evidence:
+    - claim: >-
+        The voice incident did not run across August 9 and 10. Decagon's own
+        incident page says it opened on August 10 at 10:17pm UTC and closed on
+        August 11 at 1:38am UTC. Only the [US] Voice Channel was hit. The full
+        title on this page reads "Investigating Issue with Certain Voice
+        Conversations - Resolved." The status page front door truncates that
+        title to "Investigating Issue with Certain Voice Conversa..." and shows
+        no close time, so a stranger has to click through to this page to check
+        either one.
+      inspectable_at: https://status.decagon.ai/incident/1007954
+      verify_seconds: 14
+      source_class: backstage
+      strength: 5
+
+    - claim: >-
+        Decagon's status history covers May 16 to August 13, 2026 and lists nine
+        incidents, not three. Two are worse than anything in the August window
+        the diagnosis reports. On June 1 a "Major service disruption - elevated
+        errors" took the Voice Channel down for 51 minutes and the Chat, Email
+        and SMS channels down for 51 minutes plus 42 minutes degraded. On July 15
+        "Agent Versioning temporarily in read only mode" ran 4 hours 42 minutes.
+        The rest are June 25 at 5 minutes, July 9 at 55 minutes, July 22 at 22
+        minutes, July 26 at 1 hour 24 minutes, and the three August ones the
+        diagnosis names.
+      inspectable_at: https://status.decagon.ai/history
+      verify_seconds: 15
+      source_class: backstage
+      strength: 5
+
+    - claim: >-
+        Decagon publishes no changelog and no release notes. I fetched
+        docs.decagon.ai/changelog and the page returned empty markup with no
+        content. This confirms the diagnosis gap rather than contradicting it.
+        The record that would settle Decagon's shipping pace does not exist in
+        public.
+      inspectable_at: https://docs.decagon.ai/changelog
+      verify_seconds: 6
+      source_class: backstage
+      strength: 1
+
+    - claim: >-
+        A stranger cannot inspect Persona iO. The site loads and it is a
+        marketing and enrollment page. It names two confidantes, Aline and Chase,
+        lists three more as "Coming," offers a founding membership tier, and
+        requires an application to get in. There is no public demo, no guest
+        session, and no way to run the voice pipeline without applying. So the
+        artifact's own definition of a sovereign proof, "a deployed artifact a
+        stranger can inspect without asking him for anything," is not met by the
+        asset it names.
+      inspectable_at: https://personaio.app
+      verify_seconds: 9
+      source_class: frontstage
+      strength: 4
+
+    - claim: >-
+        Decagon's careers page names no leaders. It carries a "See open roles"
+        link and an "Open roles" section and lists Remote among its hiring
+        locations. No executive, no team page, no Solutions Engineering leader.
+        This confirms the diagnosis gap that no hiring manager can be named.
+      inspectable_at: https://decagon.ai/careers
+      verify_seconds: 7
+      source_class: frontstage
+      strength: 2
+  verdict: PASS
+  gaps:
+    - >-
+      Coverage is 0.54, over the 0.50 filing-standard threshold. All five vetoes
+      passed. A backstage row sits in auditor_evidence. So this artifact passes
+      the gate. It passes carrying eight strikes, and the writer must fix them.
+      A PASS is a filing score, not a finding that every claim held.
+    - >-
+      Citation isolation was met. I opened five sources the diagnostician did not
+      cite: the incident detail page, the status history page, the docs changelog
+      path, personaio.app, and decagon.ai/careers. Three are backstage. Two of
+      the five contradict a claim in the file. The incident page kills the
+      "August 9 and 10" date. The personaio.app page kills the artifact's own
+      claim that a stranger can inspect the proof it leads with.
+    - >-
+      I attacked evidence row 5 and it held. The quotes are real. The scanner's
+      captured posting body in data/queue.json carries "We're an in-office
+      company, driven by a shared commitment to excellence and velocity," "Daily
+      lunches and snacks in the office," and "Develop custom demonstrations using
+      the Decagon platform tailored to a customer's specific needs and value."
+      My fetch of the Ashby posting page returned only the title, same as the
+      diagnostician's. That is my tool's limit, not the record's, so I did not
+      strike a fact I confirmed elsewhere. A saved copy of the rendered posting
+      would close it for a stranger with no browser.
+    - >-
+      I attacked the in-office versus Remote tension and both supporting facts
+      held. The feed puts eight of the nine entries I could read in San
+      Francisco. The only Remote entry besides this one is Strategic Account
+      Director - West, published 2024-11-12, which is a territory seat. The
+      diagnostician read this correctly.
+    - >-
+      I attacked the "17 customer logos" count and it held. The homepage shows 17
+      distinct brands: Chime, Duolingo, ClassPass, Hunter Douglas, Noom, Riot
+      Games, Deutsche Telekom, Cash App, American Airlines, Square, Rituals,
+      Fanatics, Rippling, Live Nation, Oura, Curology, Valon. The logo strip
+      repeats them, so a reader may count 28 marks for 17 brands.
+    - >-
+      proof_match.acts_on_constraint reads false and that is correct. The binding
+      part is enterprise pre-sales demo capacity. Persona iO is a voice pipeline.
+      Those are different machines and the diagnostician said so. Getting this
+      right is a finding, not an absence of error. The Gray Swan artifact failed
+      on exactly this and this one did not.
+    - >-
+      The mechanism prose never touches aline_backend and never mentions the
+      Calibration Layer, so it cannot blur the staged-versus-shipped line. It
+      labels the agent-assisted work plainly. Both known overstatements in
+      profile/proof-ledger.yaml are clear here.
+    - >-
+      One defect in decision_maker has no strike prefix, so it goes here. The
+      name field is empty and no title, email, or contact was invented. Good. The
+      source field points at https://decagon.ai/blog/self-serve. I opened it. It
+      carries "Katherine Xiao - Director of Implementations" on a post dated May
+      4, 2025, so it supports that half of the title field. It says nothing about
+      a Solutions Engineering team inside Sales, which is the other half and the
+      more load-bearing one. That fact comes from the Ashby feed. Put both URLs
+      in the source field.
+    - >-
+      A second decision_maker defect. The title field says a Solutions
+      Engineering team appears in the feed, "so a Solutions Engineering leader
+      exists." A team label on one job row is not a record of a leader. Drop the
+      inference and keep the team label.
+    - >-
+      I could not settle whether the target posting sits in Decagon's live board
+      feed. My three reads of the endpoint truncated at eight and at nine
+      entries, exactly as the diagnostician's did, and no Strategic Solutions
+      Engineer row appeared in any of them. I am not claiming it was delisted.
+      The scanner's dated record says verified_live_at 2026-08-13 with url_check
+      200, and the posting page returns the correct title. An untruncated capture
+      of the feed is the record that would settle it.
+    - >-
+      The diagnosis verdict field reads PARK. It survives. The proof does not act
+      on the named part, no hiring manager is named, and the posting asks for 4
+      to 6 years of pre-sales work the ledger does not hold. Parking is right.
+    - >-
+      The drum slot is released. The diagnosis says PARK, so no packet is drawn
+      and the slot goes back to the pool. My PASS is a filing score on the
+      artifact, not a decision to spend the slot.
+
+strikes:
+  claims_tested: 29
+  claims_struck: 8
+  struck:
+    - claim: >-
+        Evidence row 1: "The longest ran 3 hours and 21 minutes across August 9
+        and 10 ... and Decagon closed it on August 11 at 1:38am UTC."
+      reason: >-
+        This fails prove the claim. The dates are wrong and the row contradicts
+        itself. I opened Decagon's incident page. The incident opened on August
+        10 at 10:17pm UTC and closed on August 11 at 1:38am UTC. Do the
+        arithmetic in the row's own sentence: a close at 1:38am UTC on August 11
+        minus 3 hours 21 minutes lands on August 10, not August 9. Fixing the
+        dates alone does not repair the row. The exact title and the close time
+        are not on https://status.decagon.ai/ at all. The front page cuts the
+        title to "Investigating Issue with Certain Voice Conversa..." and shows
+        no close time. A stranger has to click through to
+        https://status.decagon.ai/incident/1007954 to check either fact, and the
+        row does not give that link.
+      rewrite: >-
+        Decagon's status page logged three service problems between August 2 and
+        August 11, 2026. The longest hit the [US] Voice Channel, opened August 10
+        at 10:17pm UTC, and closed August 11 at 1:38am UTC, running 3 hours 21
+        minutes. Inspect at https://status.decagon.ai/incident/1007954
+
+    - claim: >-
+        Evidence row 1: strength 5, and "A status page is an involuntary record,
+        so this is what the product actually did."
+      reason: >-
+        This fails promise versus reality. The row reports a ten-day slice and
+        calls it what the product did. The same status page's history runs May 16
+        to August 13 and lists nine incidents. Two are worse than anything in the
+        August window. On June 1 the Voice Channel went fully down for 51 minutes
+        and Chat, Email and SMS went down for 51 minutes plus 42 more degraded.
+        On July 15 Agent Versioning sat read-only for 4 hours 42 minutes. Widening
+        the window does not save strength 5, because the row admits its own
+        problem in its last sentence: "It does not by itself prove anything about
+        demo capacity." A row with no bearing on the named constraint cannot
+        carry the file's top weight.
+      rewrite: >-
+        Decagon's status history covers May 16 to August 13, 2026 and lists nine
+        incidents. The worst was June 1, a full outage of 51 minutes across all
+        channels. The longest was July 15, Agent Versioning read-only for 4 hours
+        42 minutes. This dates the condition of the surface a Solutions Engineer
+        demos. It says nothing about demo capacity. Inspect at
+        https://status.decagon.ai/history and set strength to 3.
+
+    - claim: >-
+        Evidence rows 2 and 3: "Only two roles sit in Engineering" and "Decagon
+        spends most of its open headcount on selling and deploying."
+      reason: >-
+        This fails prove the claim. Both sentences count the whole set, and the
+        diagnostician never read the whole set. Their own gap 3 says three
+        fetches truncated at 8 to 9 entries out of a stated 10. I fetched the
+        endpoint three ways and it truncated for me too, at 8 and at 9. "Only two"
+        asserts that nothing else is there, which an incomplete read cannot
+        establish. Adding the words "of the entries I could read" does not save
+        "most" either, because a majority of a subset is not a majority of the
+        set.
+      rewrite: >-
+        Of the nine entries readable in Decagon's board feed on 2026-08-13, four
+        sit in Sales, one in Deployment Strategists, two in Engineering, one in
+        Product, and one in People. The feed states 10 postings and my read
+        truncated at nine, so treat these as floors. Inspect at
+        https://api.ashbyhq.com/posting-api/job-board/decagon
+
+    - claim: >-
+        Evidence row 3: "Decagon hired a recruiter to hire. A company buys hiring
+        capacity when its growth plan runs on adding people."
+      reason: >-
+        This fails prove the claim and it breaks P4. Nobody was hired. The record
+        is an open job posting published 2026-08-12. An open requisition is a
+        want, not a hire. Changing "hired" to "posted" fixes the verb and leaves
+        the inference broken. Reading a growth plan off one recruiter posting
+        joins two things with no dated record showing both, and almost every
+        funded startup carries an open recruiter seat, so the fact separates
+        Decagon from nobody.
+      rewrite: >-
+        Decagon posted a Senior Technical Sourcer role on 2026-08-12, the newest
+        of the nine entries I could read. It is unfilled. What that says about a
+        growth plan is not in the record. Inspect at
+        https://api.ashbyhq.com/posting-api/job-board/decagon
+
+    - claim: >-
+        Evidence row 4: "The only calls to action are 'Get a demo' and 'Sign in,'
+        plus 'Register today' for its own event."
+      reason: >-
+        This fails prove the claim. I opened the homepage and counted the buttons.
+        Alongside the three the row names, the page carries "Learn more," "Read
+        story," "See all customer stories," "See what's possible," "See more
+        resources," "Contact Sales," and "Contact Support." Contact Sales is a
+        call to action and the row says it is not there. Deleting the word "only"
+        does not repair the row, because a list of buttons was never the point.
+        The point is that no button starts a trial, and you prove that by naming
+        the absence, not by miscounting what is present.
+      rewrite: >-
+        Decagon's homepage offers no self-serve path. No trial, no signup, no
+        sandbox. Every route on the page either books a human (Get a demo,
+        Contact Sales, Contact Support) or signs an existing customer into the
+        admin dashboard. Inspect at https://decagon.ai/
+
+    - claim: >-
+        binding_part: "Decagon's Solutions Engineering team."
+      reason: >-
+        This fails prove the claim. The argument is that every deal passes through
+        that team, so it must be the bottleneck. Passing through a station does
+        not make the station the constraint. Every deal also passes through an
+        Account Executive, a security review, and a contract. A demo-gated
+        homepage is the standard enterprise SaaS front door. It proves an access
+        policy, which evidence row 4 says outright, and an access policy is not a
+        capacity limit. Pointing at the hiring plan does not repair it. The plan
+        does not concentrate in Solutions Engineering. Of the nine entries I could
+        read, Decagon has open seats in Sales, Deployment Strategists,
+        Engineering, Product, and People, and Solutions Engineering holds two of
+        about ten. That is broad hiring, not a starved station.
+      rewrite: >-
+        Decagon gates all product access behind a booked demo, and its own
+        posting says the Solutions Engineer builds those demos by hand. So every
+        enterprise deal passes through Solutions Engineering. Whether that team's
+        capacity is the tightest in the chain is not in the public record.
+
+    - claim: >-
+        output_capped: "The number of enterprise buyers Decagon can put a working
+        custom demo in front of at one time."
+      reason: >-
+        This fails prove the claim and it breaks P3, which says never treat a
+        limit you have not reached as a constraint. Not one evidence row gives a
+        demo count, a queue length, a wait time, a win rate, or a Solutions
+        Engineering headcount. So nothing dates Decagon reaching this limit. The
+        diagnostician says as much in gaps entry 5: "I can show the gate and I
+        cannot show the line behind it." Confessing the missing count does not
+        cure treating the limit as reached, because the constraint block still
+        asserts it. Narrowing the claim to first-demo capacity does not save it
+        either. That is the same uncounted number under a shorter name.
+      rewrite: null
+
+    - claim: >-
+        proof_match asset: persona_io, tier sovereign, "live at
+        https://personaio.app."
+      reason: >-
+        This fails promise versus reality against the artifact's own definition.
+        The reason block defines a sovereign proof as "a deployed artifact a
+        stranger can inspect without asking him for anything." I opened
+        personaio.app. It is a marketing and enrollment page. It names Aline and
+        Chase, lists three more confidantes as "Coming," offers a founding
+        membership tier, and requires an application before anyone gets in. There
+        is no public demo and no guest session. So a stranger who follows the link
+        cannot inspect the voice pipeline the row claims to prove. Calling it
+        "deployed" does not repair this. The site is deployed and the pipeline is
+        still unreachable. What fails is inspection, not deployment. The word
+        "solo" in the reason block also stands unqualified there, while the
+        mechanism block correctly says the work is agent-assisted. Say it in both
+        places.
+      rewrite: >-
+        Michael built and shipped Persona iO, an agent-assisted real-time voice
+        pipeline across Anthropic, ElevenLabs, Deepgram, Simli, and Supabase. The
+        site at https://personaio.app is live, but access is behind an
+        application, so a stranger sees the marketing page and cannot run the
+        pipeline. The record that would make this sovereign is a public demo
+        session or a published transcript with timing. Until one exists, drop the
+        sovereign tier or lead with the public aline-backend source instead.

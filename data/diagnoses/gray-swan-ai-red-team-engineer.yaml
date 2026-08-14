@@ -1,0 +1,585 @@
+company: Gray Swan AI
+role: Red Team Engineer
+url: https://jobs.ashbyhq.com/Gray%20Swan%20AI/e22e9376-8158-4b1d-bddf-e059bb846d6a
+archetype: red_team_boutiques
+archetype_match_confidence: high
+# Gray Swan runs public adversarial red-teaming competitions and private red
+# team engagements for frontier labs. That is what red_team_boutiques names.
+# No forced fit here.
+
+hypothesis_source: data/queue.json row ashby:Gray Swan AI:e22e9376-8158-4b1d-bddf-e059bb846d6a, posted '2026-08-13'
+time_started: '2026-08-13T00:00:00Z'
+
+gate0_check:
+  flags_on_row: []
+  blocking_flags_array_read_at: src/gates.js lines 210-216, on '2026-08-13'
+  blocking_prefixes_confirmed:
+    - 'relocation_cost:'
+    - 'country_only:'
+    - 'remote_unverified:'
+    - 'comp:unknown'
+    - 'posted:unknown'
+  result: >-
+    No blocking flag fires. The row publishes a comp band of 110,000 to 185,000
+    USD, so comp:unknown does not apply. The row publishes a posted date of
+    2026-08-13, age 0 days, so posted:unknown does not apply and the freshness
+    rule does not apply. The location string is "Remote (U.S. or International)"
+    and carries no city and no office signal, so remote_unverified does not
+    apply. No Gate 0 flag blocks SHIP.
+
+dated: '2026-08-13'
+
+constraint_hypothesis:
+  weakest_link: >-
+    Gray Swan AI produces no more Arena challenges than its slowest part,
+    hand-authored attack scenarios, allows.
+  binding_part: >-
+    Hand-authored attack scenarios. Before a challenge can open, a person has to
+    build the target system and write a working exploit against it. Gray Swan's
+    own public cyber benchmark shows the cost: 20 scenarios took 251 files and
+    13,396 lines of code, written by one engineer working with an AI agent.
+  output_capped: >-
+    The number of Arena challenges Gray Swan can run. That number matters beyond
+    the Arena, because Gray Swan's paid products learn their attacks from Arena
+    results.
+  confidence: high
+
+acquittal: EVIDENCE_SUFFICIENT
+
+evidence:
+  - claim: >-
+      Gray Swan's public cyber-robustness benchmark is 20 hand-built scenarios.
+      One commit added 251 files and 13,396 lines with zero deletions on
+      2026-05-31. The commit message says each scenario is a containerized
+      target with LLM grading. The author is the GitHub user eliotjones1, and
+      the message carries the trailer "Co-Authored-By: Claude Opus 4.8 (1M
+      context)". So one engineer plus an AI agent is what a 20-scenario bank
+      costs Gray Swan.
+    inspectable_at: https://github.com/GraySwanAI/crf-benchmark/commit/9960f3c
+    verify_seconds: 7
+    source_class: backstage
+    strength: 5
+
+  - claim: >-
+      Gray Swan's open-source prompt-injection benchmark lists 41 distinct
+      behaviors, grouped into 3 categories named tool, coding, and browser, and
+      split across 3 evaluation waves. The behaviors are enumerated one at a
+      time in the README, not generated.
+    inspectable_at: https://github.com/GraySwanAI/ipi_arena_os
+    verify_seconds: 9
+    source_class: backstage
+    strength: 4
+
+  - claim: >-
+      nanoGCG is Gray Swan's public implementation of an automated jailbreak
+      search algorithm. On 2026-08-13 it carries 12 open issues and 2 open pull
+      requests, and the org repository list shows it was last updated on
+      2025-05-13. Their automated attack generator is not where the work is
+      going.
+    inspectable_at: https://github.com/GraySwanAI/nanoGCG
+    verify_seconds: 6
+    source_class: backstage
+    strength: 4
+
+  - claim: >-
+      The posting asks a Red Team Engineer to "Build internal tools and
+      processes for the Arena (e.g., cheating detection) and support operational
+      tasks like break verification and prize distribution." This is a
+      specificity leak. A careers page sells the interesting parts of a job. It
+      does not volunteer that the product has a cheating problem, and it does
+      not volunteer that engineers hand out prize money by hand. The
+      parenthetical exists because someone is dealing with cheating right now.
+    inspectable_at: https://jobs.ashbyhq.com/Gray%20Swan%20AI/e22e9376-8158-4b1d-bddf-e059bb846d6a
+    verify_seconds: 8
+    source_class: frontstage
+    strength: 3
+    specificity_leak: true
+
+  - claim: >-
+      NIST's CAISI research blog, published 2026-03-23, reports on a Gray Swan
+      red-teaming competition: "Across more than 250,000 attack attempts from
+      over 400 participants, at least one successful attack was found against
+      all of the target frontier models." Attackers are plentiful. This is a
+      third-party record, not Gray Swan's own marketing.
+    inspectable_at: https://www.nist.gov/blogs/caisi-research-blog/insights-ai-agent-security-large-scale-red-teaming-competition
+    verify_seconds: 14
+    source_class: frontstage
+    strength: 4
+
+disconfirming:
+  query_issued: >-
+    Two kill queries, both issued after the hypothesis was written. First, a
+    search for whether Arena breaks are verified automatically or by hand, which
+    was aimed at my original hypothesis that manual break verification is the
+    binding part. Second, a search asking whether Gray Swan's Shade product
+    generates its own attack scenarios automatically, which was aimed at the
+    narrowed hypothesis that scenario authorship is the binding part. If Shade
+    writes its own scenarios, the narrowed hypothesis is dead.
+  result: >-
+    The first query killed my first hypothesis, and I am recording that rather
+    than hiding it. Arena submissions are scored automatically by an AI judge
+    with immediate feedback, and human review is only a second pass on
+    already-approved breaks plus an appeals path. So hand verification does not
+    cap how many attacks the Arena can absorb. I rewrote the hypothesis around
+    scenario authorship. The second query did not kill the rewrite. Gray Swan's
+    own Shade page describes Shade as "powered by attack data from the largest
+    network of AI red teamers" with "attack strategies updated as new techniques
+    are discovered in the Arena." Shade varies and replays what humans found in
+    the Arena. It does not invent the scenarios. That makes the Arena the
+    upstream station and Shade the downstream one, which is the opposite of a
+    kill.
+  survived: true
+
+proof_match:
+  asset: test_harness
+  tier: sovereign
+  acts_on_constraint: true
+  mechanism: >-
+    Gray Swan needs more graded attack scenarios, and today each one is built by
+    hand. Michael built an adversarial evaluation harness, test-mra.js, that
+    does that job. It names failure classes, including drift, sycophancy,
+    fabricated continuity, and dependency-seeking behavior, and it gives each
+    class a written pass or fail rule. That is the same shape as Gray Swan's own
+    grader, which pairs a deterministic check with an LLM judge. The work is
+    agent-assisted. Michael directs Claude Code and owns the requirements, the
+    test design, and the acceptance. Gray Swan builds the same way, and their
+    own commit trailer proves it: the CRF benchmark lists Claude Opus 4.8 as
+    co-author. So the way Michael works is the house style here, not a
+    liability.
+
+decision_maker:
+  name: ''
+  title: >-
+    Chief Product Officer. Spencer Whitman holds that title, verified on
+    grayswan.ai/about. Nothing confirms he owns this requisition. No red team
+    lead or Arena lead is named anywhere public.
+  reachable_via: >-
+    The only published application path is the Ashby form. One named non-ATS
+    technical contact exists: Eliot Jones, the engineer who committed the CRF
+    benchmark. His GitHub profile lists the site eliotkjones.me and the handle
+    @eliotkjones on X. He is a peer, not the hiring manager, so treat him as a
+    referral route and not as the decision maker.
+  source: https://github.com/eliotjones1
+
+verdict: SHIP
+reason: >-
+  Why it is stuck. Gray Swan sells attack data to frontier labs. The Arena is
+  where that data comes from. Attackers are not the scarce thing: NIST counted
+  more than 250,000 attack attempts from over 400 participants in one Gray Swan
+  competition. Scenarios are the scarce thing. Each scenario needs a person to
+  build a working target and write a working exploit against it, and Gray Swan's
+  own numbers show the price. Their public cyber benchmark reached 20 scenarios
+  only after 251 files and 13,396 lines of code in a single drop. Their
+  open-source prompt-injection benchmark enumerates 41 behaviors one at a time.
+  So scenario writing sets the pace, and it is the bottleneck, meaning the one
+  part whose capacity sits closest to its load and therefore caps everything
+  behind it. Everything behind it is real revenue: Shade and Cygnal learn their
+  attacks from Arena results, so a quarter with few new scenarios is a quarter
+  with few new attack techniques to sell.
+
+  How a fix would work, and the wrong guess. The obvious guess is that Gray Swan
+  needs more red-teamers. That guess is wrong, and the NIST number kills it. Four
+  hundred people already showed up for one event. Adding attackers adds pressure
+  to a station that is not the constraint, which just piles up work in front of
+  the one that is. What is missing is a repeatable way to turn one attack idea
+  into many scenarios that a grader can score without a human reading each
+  result. Note the honest limit on this reading: Gray Swan's paid Arena tooling
+  is private, so I am reading their public benchmarks as the visible sample of
+  private practice. That is an inference, and I am marking it as one.
+
+  What to do with the evidence. Lead with the adversarial evaluation harness in
+  aline-backend, and say plainly that it is agent-assisted, because Gray Swan's
+  own CRF commit lists Claude Opus 4.8 as co-author and their technical interview
+  is explicitly part AI-assisted. Then do the thing the posting itself rewards:
+  the Arena is open to the public and "Experience as a Gray Swan Arena competitor
+  is a plus." Competing produces a dated reading of their live product and a
+  credential in the same act. Route the packet at the Chief Product Officer title
+  and use Eliot Jones as the technical referral path, since he built the exact
+  artifact this diagnosis rests on.
+gaps:
+  - >-
+    The Deformation Test Bank is the sharper match for this constraint, because
+    it is a reusable three-phase protocol with objective coding rules rather
+    than a single test suite. It cannot lead the packet. proof-ledger.yaml
+    records its inspect_at as TODO_PUBLIC_URL, so no stranger can open it.
+    Publishing it at a real URL would upgrade this packet from good to strong.
+    Until then the harness leads.
+  - >-
+    No hiring manager is named for this role. Gray Swan publishes four
+    executives and no team page. The record that would settle it is a recruiter
+    reply naming the manager, or a Gray Swan org listing showing who owns the
+    Arena. It matters because a 50-person company routes red team hiring through
+    a lead, not through the Chief Product Officer, and I cannot show who that
+    lead is.
+  - >-
+    The arXiv paper 2507.20526 reports 44 deployment scenarios for the UK AISI
+    agent red-teaming challenge, which would sharpen the scenario count. I read
+    a summary of that abstract, not the abstract word for word, so I left the
+    number out of the evidence rows. Opening the paper and quoting the abstract
+    would settle it.
+  - >-
+    The crf-benchmark repo shows 1 commit and ipi_arena_os shows 2. That may
+    mean a squashed public mirror rather than an abandoned project, so I built
+    no claim on maintenance. The scenario counts and the file counts are solid.
+    Internal commit history would settle the maintenance question, and it is not
+    public.
+  - >-
+    The NIST evidence row takes about 14 seconds to verify, which is over the
+    ten-second bar. Flagged rather than smoothed. The quote sits in the body of
+    a long blog post. The two GitHub rows carry the argument and both verify in
+    under 10 seconds.
+  - >-
+    The benefits list names a Pittsburgh office and catered lunches, while the
+    location field says "Remote (U.S. or International)". Gate 0 recorded no
+    remote_unverified flag, correctly, because that flag reads the location
+    string and the string carries no office signal. Still worth one question to
+    the recruiter about travel before Michael accepts anything.
+  - >-
+    Michael has not yet competed in the Arena, so this diagnosis carries no
+    measurement he took himself. That is the cheapest gap to close and it is
+    also the strongest single move available here.
+
+audit:
+  dated: '2026-08-13'
+  coverage_score: 0.46
+  unanswered_question_numbers: [2, 3, 4, 5, 15, 16, 17, 18, 21, 23, 24, 25, 26, 27, 28]
+  veto_results:
+    q9_link_behind_claim: true
+    q10_verify_under_60s: true
+    q13_source_beyond_posting: true
+    q19_staged_labeled: true
+    q20_agent_assisted_labeled: true
+  auditor_evidence:
+    - claim: >-
+        The crf-benchmark commit message is one line: "Initial commit: CRF
+        Benchmark". It says nothing about containers or grading. The README is
+        where those facts live. The README says "20 benchmarks live in
+        local-benchmarks/, one directory per scenario", that the app and the
+        agent both run in Docker, and that the runner "grades the agent's final
+        report with two LLM judges". The README never says how the scenarios
+        were authored.
+      inspectable_at: https://github.com/GraySwanAI/crf-benchmark/blob/main/README.md
+      verify_seconds: 11
+      source_class: backstage
+      strength: 5
+
+    - claim: >-
+        nanoGCG has 12 open issues. The oldest, #15, has sat open since
+        2024-09-11. The newest, #36, was opened 2025-04-14. No issue is newer
+        than April 2025 and none carries a maintainer answer. Gray Swan stopped
+        working on nanoGCG.
+      inspectable_at: https://github.com/GraySwanAI/nanoGCG/issues
+      verify_seconds: 8
+      source_class: backstage
+      strength: 4
+
+    - claim: >-
+        The GraySwanAI org lists 8 public repos with these last-updated dates:
+        crf-benchmark 2026-05-31, Openclaw-Cygnal-Plugin 2026-05-06, openclaw
+        2026-05-04, agentdojo 2026-04-20, litellm 2026-04-15, ipi_arena_os
+        2026-03-18, nanoGCG 2025-05-13, circuit-breakers 2024-09-24. Four of the
+        five most recently touched repos are agent runtime and Cygnal
+        monitoring work, not scenario banks. Gray Swan's recent public
+        engineering is going into the guardrail product, not into authoring
+        scenarios.
+      inspectable_at: https://github.com/orgs/GraySwanAI/repositories
+      verify_seconds: 9
+      source_class: backstage
+      strength: 4
+
+    - claim: >-
+        Michael's aline-backend repo is public. test-mra.js sits at the repo
+        root, so a stranger can open it. The README states the Calibration
+        Layer is "staged, not enforcing" and that "Nothing in server.js imports
+        any of it. The only importer in the repository is test-mra.js, a
+        standalone harness." So the harness is real and inspectable, and the
+        staged layer is labeled staged in Michael's own README.
+      inspectable_at: https://github.com/MichaelDienerAI/aline-backend
+      verify_seconds: 10
+      source_class: backstage
+      strength: 5
+
+    - claim: >-
+        arXiv 2507.20526, "Security Challenges in AI Agent Deployment: Insights
+        from a Large Scale Public Competition", reports that the Gray Swan
+        competition used 44 deployment scenarios across 22 frontier agents and
+        drew 1.8 million prompt-injection attempts, with over 60,000 successful
+        policy violations. Eliot Jones is a listed author. Gray Swan fielded 44
+        scenarios at once. Nothing here shows the company short of scenarios.
+      inspectable_at: https://arxiv.org/abs/2507.20526
+      verify_seconds: 12
+      source_class: frontstage
+      strength: 4
+  verdict: REJECT
+  gaps:
+    - >-
+      Coverage is 0.46, under the 0.50 filing-standard threshold. That alone is
+      a REJECT. All five vetoes passed, so this packet does not die on a
+      checkpoint. It dies because it answers 13 of 28 questions.
+    - >-
+      Citation isolation was met. I opened five sources the diagnostician did
+      not cite: the crf-benchmark README blob, the nanoGCG issues list, the
+      GraySwanAI org repositories page, the aline-backend repo, and arXiv
+      2507.20526. Four are backstage. Three of the five contradict a claim in
+      the diagnosis.
+    - >-
+      I could not verify evidence row 4. The Ashby posting page renders in the
+      browser after load, and a plain fetch returned only the job title. So I
+      could not read the cheating-detection bullet myself. I did not strike the
+      quote as false. I struck the row on relevance instead. The record that
+      would settle the quote is a saved copy of the rendered posting, or the
+      same bullet on a mirror such as a job aggregator.
+    - >-
+      I attacked the decision-maker block and it mostly held. Spencer Whitman is
+      listed as Chief Product Officer on grayswan.ai/about, alongside Matt
+      Fredrikson as CEO, Zico Kolter as Chief Scientist, and Rob Jenks as Chief
+      Strategy Officer. Four executives, as the diagnosis says. The name field
+      is correctly empty. Eliot Jones is real and is independently confirmed as
+      a Gray Swan competition author on arXiv 2507.20526. No name, title, or
+      contact was invented.
+    - >-
+      One defect in that block has no strike prefix, so it goes here. The source
+      field points at https://github.com/eliotjones1. That page says nothing
+      about Spencer Whitman. A stranger who follows the source cannot check the
+      Chief Product Officer claim. The fix is to put grayswan.ai/about in the
+      source field.
+    - >-
+      Evidence row 1's numbers are correct. I opened the commit. It shows 251
+      files, 13,396 lines added, 0 deleted, author eliotjones1, and the trailer
+      "Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>".
+      The commit is public and needs no account. That part of the row survives.
+    - >-
+      Evidence row 5's quote is real. NIST's post is dated 2026-03-23 and
+      contains "Across more than 250,000 attack attempts from over 400
+      participants". I could not confirm the second half of the quoted sentence
+      word for word in my read. I struck the row on verify time and strength,
+      not on the number.
+    - >-
+      The artifact defines "bottleneck" inline, as CLAUDE.md requires. It uses
+      "constraint" in prose without defining it. Minor, and not worth a strike
+      row next to eleven substantive ones, but the writer should define it on
+      first use.
+    - >-
+      Verdict downgrade. The diagnosis verdict field still reads SHIP. It does
+      not survive. diagnostician.md requires a sovereign proof match with
+      acts_on_constraint true for a SHIP, and strike 9 kills that against the
+      binding part as written. The verdict should read PARK. I left the field
+      alone so the record shows what was claimed.
+    - >-
+      The drum slot is released. REJECT returns it to the pool.
+
+strikes:
+  claims_tested: 17
+  claims_struck: 11
+  struck:
+    - claim: >-
+        binding_part: "Hand-authored attack scenarios."
+      reason: >-
+        This fails promise versus reality. The record shows the opposite of
+        hand-authored. The one commit the claim rests on carries the trailer
+        "Co-Authored-By: Claude Opus 4.8 (1M context)". An AI agent helped write
+        those 13,396 lines. I read the crf-benchmark README and it never says
+        how the scenarios were authored. No record shows a human writing them by
+        hand. Evidence row 1 repeats the same wrong word when it says "20
+        hand-built scenarios", so fix both places. Swapping "hand-authored" for
+        "agent-assisted" does not save the constraint either. If one engineer
+        plus an agent produced a 20-scenario bank in a single commit, that
+        station is fast. The evidence undercuts the claim it was filed to
+        support.
+      rewrite: >-
+        Gray Swan's public scenario banks are written by named engineers working
+        with an AI agent. One engineer plus an agent produced a 20-scenario bank
+        in one commit on 2026-05-31. How long that took, and whether it is slow
+        enough to cap anything, is not public.
+
+    - claim: >-
+        output_capped: "The number of Arena challenges Gray Swan can run."
+      reason: >-
+        This fails prove the claim, and it breaks P3. Not one evidence row gives
+        an Arena challenge count, a release cadence, or a scenario backlog. So
+        the artifact never shows Gray Swan reaching this limit. The record I
+        opened runs the other way. arXiv 2507.20526, which the diagnostician
+        named in gap 3 and chose not to open, reports Gray Swan fielded 44
+        deployment scenarios across 22 agents in a single public competition and
+        absorbed 1.8 million attack attempts. A company that fields 44 scenarios
+        at once is not visibly starved for scenarios. Narrowing the claim to
+        public benchmark scenarios does not save it. crf-benchmark went from
+        zero to 20 scenarios in one commit, which is a burst, not a queue.
+      rewrite: null
+
+    - claim: >-
+        Evidence row 1: "The commit message says each scenario is a
+        containerized target with LLM grading."
+      reason: >-
+        This fails prove the claim. I opened the commit. The message is one
+        line: "Initial commit: CRF Benchmark". It says nothing about containers
+        and nothing about grading. Those facts live in the README, which is a
+        different page. Deleting the words "commit message" does not fix it. The
+        row's inspectable_at still points at the commit, so a stranger who
+        clicks the link will not find the claim there.
+      rewrite: >-
+        Gray Swan's crf-benchmark README says 20 benchmarks live in
+        local-benchmarks/, one directory per scenario. The app and the agent
+        both run in Docker containers, and two LLM judges grade the agent's
+        final report. Inspect at
+        https://github.com/GraySwanAI/crf-benchmark/blob/main/README.md
+
+    - claim: >-
+        Evidence row 2: "The behaviors are enumerated one at a time in the
+        README, not generated."
+      reason: >-
+        This fails prove the claim. I opened the README. It does not list the
+        behaviors. It gives a command, ipi-arena-bench list-behaviors, which a
+        reader would have to install the package to run. So the claim is not
+        checkable at the URL given, and the recorded 9 seconds measured reading
+        the counts, not this sentence. The words "not generated" have no source
+        at all, because the README never says how the behaviors were made.
+        Pointing at the CLI command does not repair it. A stranger who has to
+        install a Python package is well past sixty seconds, and the output is
+        still a list, not a record of who wrote it.
+      rewrite: >-
+        Gray Swan's ipi_arena_os README reports 41 behaviors across three
+        categories, 18 tool, 15 coding, and 8 browser, split across 3 waves. The
+        README does not say how the behaviors were authored.
+
+    - claim: >-
+        Evidence row 3: "Their automated attack generator is not where the work
+        is going." Strength 4.
+      reason: >-
+        The repo facts are right and the conclusion is not. I opened the issues
+        list. Twelve issues are open, the oldest since 2024-09-11, and none is
+        newer than 2025-04-14. The last commit landed 2025-05-13. So Gray Swan
+        stopped maintaining nanoGCG. But going from a dead repo to "the work
+        moved to scenario authorship" joins two facts with no dated record
+        showing both, which P4 forbids. Abandoned tooling fits several stories,
+        including that GCG-style token attacks stopped working on newer models.
+        Adding the issue ages does not repair the jump. More detail about the
+        dead repo still says nothing about where the effort went.
+      rewrite: >-
+        nanoGCG is Gray Swan's public GCG implementation. Its last commit landed
+        2025-05-13. Twelve issues sit open, the oldest since 2024-09-11, and
+        none has a maintainer reply. Gray Swan stopped maintaining it. Where
+        that effort went is not public. Set strength to 3.
+
+    - claim: >-
+        Evidence row 4: the posting bullet on cheating detection, break
+        verification, and prize distribution, labeled specificity_leak.
+      reason: >-
+        This fails prove the claim on relevance. Grant the quote. All three
+        things it leaks are Arena operations: catching cheaters, verifying
+        breaks, handing out prizes. None of them is scenario authorship, which
+        is the binding part this diagnosis names. So the row corroborates the
+        first hypothesis, the one the diagnostician killed, and it was left in
+        place after the rewrite. It gets worse. The quote says engineers
+        "support operational tasks like break verification," and
+        disconfirming.result says break verification is automated and caps
+        nothing. The artifact carries both sentences and never reconciles them.
+        Relabeling the row as a leak about operational load does not save it for
+        this diagnosis, because that is the dead hypothesis.
+      rewrite: >-
+        The posting leaks that Gray Swan staffs Arena operations by hand:
+        cheating detection, break verification, and prize distribution. That
+        points at a different constraint from scenario authorship, and this
+        diagnosis does not test it. Do not file this row under the scenario
+        claim.
+
+    - claim: >-
+        Evidence row 5: verify_seconds 14, source_class frontstage, strength 4.
+      reason: >-
+        This fails my ten-second bar. A claim passes if a stranger checks it in
+        ten seconds with one click. Fourteen seconds is over. The quote sits deep
+        in the body of a long NIST post. The number itself is real. I read the
+        post and it does contain "Across more than 250,000 attack attempts from
+        over 400 participants," dated 2026-03-23, covering 13 frontier models.
+        But strength 4 is too high for this row, because a curated third-party
+        blog post is a published document, not an involuntary trace. Trimming
+        the quote does not get it under ten seconds. The post is long and the
+        number is buried.
+      rewrite: >-
+        NIST's CAISI blog, dated 2026-03-23, reports "Across more than 250,000
+        attack attempts from over 400 participants" in a Gray Swan competition
+        covering 13 frontier models. Attackers are plentiful. Verify takes about
+        14 seconds. Set strength to 3 and flag the row.
+
+    - claim: >-
+        proof_match mechanism: "That is the same shape as Gray Swan's own
+        grader, which pairs a deterministic check with an LLM judge."
+      reason: >-
+        This fails prove the claim. I read the crf-benchmark README. It says the
+        runner "grades the agent's final report with two LLM judges." Two LLM
+        judges, not a deterministic check plus a judge. Each scenario directory
+        does hold a reference exploit named solve.py, but the README does not
+        describe it as the grading gate. Dropping the words "a deterministic
+        check with" narrows the sentence, but the shape argument still leans on
+        a match the README does not show.
+      rewrite: >-
+        Gray Swan's crf-benchmark grades an agent's final report with two LLM
+        judges against a written grading_criteria.md. Michael's test-mra.js
+        grades model responses against written pass or fail rules, one rule per
+        failure class. Both score behavior against written criteria.
+
+    - claim: >-
+        proof_match mechanism: "Gray Swan needs more graded attack scenarios,
+        and today each one is built by hand. Michael built an adversarial
+        evaluation harness, test-mra.js, that does that job."
+      reason: >-
+        This fails promise versus reality, and it is the strike that sinks the
+        SHIP. The binding part this diagnosis names is authoring scenarios:
+        building a vulnerable target and writing a working exploit against it.
+        test-mra.js does not do that. I opened the repo. It grades responses
+        against written failure-class rules. It builds no target, writes no
+        exploit, and ships no container. So acts_on_constraint: true is asserted
+        about the grading half while the constraint is named on the authoring
+        half. Calling the harness scenario tooling does not close the gap. A
+        grader and an authoring pipeline are different machines, and Gray Swan
+        already grades automatically, which the disconfirming block itself says.
+      rewrite: >-
+        Michael built test-mra.js, a written evaluation harness that names
+        failure classes and gives each one a pass or fail rule. It grades
+        behavior. It does not build targets and it does not write exploits.
+        Inspect at
+        https://github.com/MichaelDienerAI/aline-backend/blob/main/test-mra.js
+        Against the binding part as written, set acts_on_constraint to false.
+
+    - claim: >-
+        disconfirming.result: "The second query did not kill the rewrite."
+      reason: >-
+        This fails P2. The second kill query was answered entirely from Gray
+        Swan's own Shade product page, quoted twice. That page is frontstage:
+        it is the company describing its own product to buyers. The repo's own
+        evidence rule says a company's own account cannot establish how its
+        pipeline works. So the survival of the second hypothesis rests on a
+        source class the artifact's own rules exclude. The Shade URL also
+        appears nowhere in the file, so a stranger cannot open it. Adding the
+        URL fixes the missing link and not the source class. Marketing copy
+        saying "attack strategies updated as new techniques are discovered in
+        the Arena" is a sales claim, not a record of a build pipeline.
+      rewrite: >-
+        The second kill query returned only Gray Swan's own Shade product page.
+        That page is the company describing itself, so it cannot settle whether
+        Shade generates its own scenarios. The second hypothesis is untested,
+        not survived. Set survived to false and name the missing record: a Shade
+        technical doc or a changelog saying where its attack scenarios come
+        from.
+
+    - claim: >-
+        Gap 3: "I read a summary of that abstract, not the abstract word for
+        word, so I left the number out of the evidence rows."
+      reason: >-
+        Naming a missing record is a finding under P5. This is not that. I
+        opened arXiv 2507.20526 in about twelve seconds with no account. A
+        record a stranger reaches in twelve seconds is not a gap, it is
+        unfinished work. What it holds matters: 44 deployment scenarios, 22
+        frontier agents, 1.8 million prompt-injection attempts, over 60,000
+        successful violations, and Eliot Jones as a listed author. Those numbers
+        cut against the diagnosis, and filing them as a gap kept the unfavorable
+        figure out of the evidence rows. Saying the summary was close enough
+        does not repair it, because the summary is the reason the 44 never got
+        weighed.
+      rewrite: >-
+        arXiv 2507.20526, "Security Challenges in AI Agent Deployment: Insights
+        from a Large Scale Public Competition," reports Gray Swan's competition
+        used 44 deployment scenarios across 22 frontier agents and drew 1.8
+        million prompt-injection attempts. Eliot Jones is an author. It is
+        public and opens in about 12 seconds. Weigh the 44 against the scenario
+        scarcity claim before rewriting the hypothesis.
