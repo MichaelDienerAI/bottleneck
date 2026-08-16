@@ -54,8 +54,17 @@ const readJson = (p, fallback) => {
   }
 };
 
-const writeJson = (p, v) =>
-  fs.writeFileSync(path.join(ROOT, p), JSON.stringify(v, null, 2) + '\n');
+// Atomic. writeFileSync truncates and then fills, so a reader that opens the
+// file in between gets a torn one — and the diagnostician reads data/queue.json
+// while it runs, so "in between" is a real moment here rather than a
+// theoretical one. Write beside it and rename, which is atomic on one
+// filesystem, so a concurrent reader sees either the old file or the new one.
+const writeJson = (p, v) => {
+  const full = path.join(ROOT, p);
+  const tmp = `${full}.tmp`;
+  fs.writeFileSync(tmp, JSON.stringify(v, null, 2) + '\n');
+  fs.renameSync(tmp, full);
+};
 
 const localToday = () => {
   const d = new Date();
@@ -142,7 +151,22 @@ function observablesFor(company) {
   return null;
 }
 
+// A job whose child has exited but whose 'close' never arrived would leave the
+// page locked forever, every action disabled, with nothing on screen explaining
+// why and no way to clear it short of restarting the server. The close handler
+// is reliable in practice, so this is insurance rather than a fix: if the
+// process is gone and the record still says running, close the record.
+function reconcileJob() {
+  if (!current || current.done || !current.child) return;
+  const c = current.child;
+  if (c.exitCode !== null || c.signalCode !== null) {
+    push(current, 'meta', 'child exited without a close event; reconciled by the server');
+    finish(current, c.exitCode ?? 1);
+  }
+}
+
 function state() {
+  reconcileJob();
   const cfg = readYaml('profile/gates.yaml') || readYaml('profile/gates.example.yaml') || {};
   const cap = cfg.drum?.packets_per_week ?? 5;
   const slots = openSlots(ROOT, cfg);
@@ -345,6 +369,10 @@ function startJob(action, company) {
     return job;
   }
 
+  // Kept so state() can tell a job that is still running from one whose child
+  // is gone. Never serialized: jobView picks its fields explicitly.
+  job.child = child;
+
   child.stdout.on('data', (b) => push(job, 'stdout', b.toString()));
   child.stderr.on('data', (b) => push(job, 'stderr', b.toString()));
   child.on('error', (err) => push(job, 'stderr', `${CLAUDE_BIN}: ${err.message}`));
@@ -528,11 +556,23 @@ const server = http.createServer((req, res) => {
         return json(res, 400, { error: 'bad json' });
       }
 
-      if (current && !current.done) return json(res, 409, { error: 'a job is running. Wait for it to finish.' });
-
       const queue = readQueue();
       const { queue: next, struck } = strikeRow(queue, body.key);
       if (!struck) return json(res, 400, { error: 'key is not a row in data/queue.json' });
+
+      // Only the row under diagnosis is protected, not the whole buffer.
+      //
+      // This refused every strike while any job ran, which locked the button for
+      // the twenty minutes a diagnosis takes and made it read as broken. The
+      // real hazard is narrow: the diagnostician reads data/queue.json for the
+      // company it was spawned on, so removing THAT row mid-run pulls the
+      // posting out from under it. Every other row is untouched by that child,
+      // and writeJson is atomic, so there is no torn read either.
+      if (current && !current.done && struck.company === current.company) {
+        return json(res, 409, {
+          error: `/${current.action} ${current.company} is running and reads this row. Wait for it to finish.`,
+        });
+      }
       if (!body.confirm) return json(res, 428, { error: 'confirm required', removes: struck.company });
 
       const cfg = readYaml('profile/gates.yaml') || readYaml('profile/gates.example.yaml') || {};
@@ -754,6 +794,8 @@ const money = (c) => c && (c.min || c.max)
   : 'no band';
 
 let running = false;
+let runningCompany = null;
+let runningAction = null;
 
 function card(r) {
   const d = r.diagnosis;
@@ -820,7 +862,15 @@ function card(r) {
   const del = document.createElement('button');
   del.className = 'act danger';
   del.textContent = 'Delete from queue';
-  del.disabled = running;
+  // Not the global running flag. A diagnosis reads data/queue.json for its OWN
+  // company, so only that row is unsafe to remove mid-run; the rest of the
+  // buffer is not its business. Disabling all ten for the twenty minutes a
+  // diagnosis takes is what made this button read as broken.
+  const busyOnThisRow = running && runningCompany === r.company;
+  del.disabled = busyOnThisRow;
+  del.title = busyOnThisRow
+    ? '/' + runningAction + ' ' + runningCompany + ' is running and reads this row. Wait for it to finish.'
+    : 'Removes it from the buffer and pulls up the next eligible row. Does not close the company.';
   del.onclick = () => strike(r.key, r.company);
   confirmActs.appendChild(del);
 
@@ -945,6 +995,8 @@ async function load() {
   document.getElementById('pips').innerHTML =
     Array.from({length: s.cap}, (_, i) => '<span class="pip' + (i < s.used ? ' spent' : '') + '"></span>').join('');
   running = Boolean(s.job && !s.job.done);
+  runningCompany = running ? s.job.company : null;
+  runningAction = running ? s.job.action : null;
   const cards = document.getElementById('cards');
   cards.innerHTML = '';
   s.rows.forEach(r => cards.appendChild(card(r)));
