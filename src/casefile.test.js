@@ -435,6 +435,37 @@ t('recording is idempotent across /diagnose and /ship', () => {
   assert.equal(shouldSkip('Testco', '2026-08-15', root).skip, true, 'a shipped company is closed to the scan');
 });
 
+t('an edit that does not change the reading is not a second visit', () => {
+  // This one is a regression. The digest hashed the raw file text, so adding a
+  // revisit_trigger field to two parked diagnoses read as a second visit to each
+  // company. The evidence keys were unchanged, noProgress fired, and both closed
+  // as DEAD on an edit that surfaced no evidence and made no claim. A comment or
+  // a typo fix would have done the same.
+  const root = makeRoot();
+  writeDiagnosis(root, diagnosis());
+  recordFromDiagnosis('Testco', { root });
+
+  writeDiagnosis(root, diagnosis({ revisit_trigger: 'a role on the voice runtime', reason: 'reworded entirely' }));
+  const second = recordFromDiagnosis('Testco', { root });
+
+  assert.equal(second.visits, 1, 'a trigger and a reworded reason are not a second look at the company');
+  assert.equal(second.status, 'PARKED');
+  assert.equal(second.revisit_trigger, 'a role on the voice runtime', 'the trigger still has to land');
+});
+
+t('finding the decision-maker updates the file without filing a visit', () => {
+  // Same principle. Naming the human is a fact added to the file, not a second
+  // reading of the constraint.
+  const root = makeRoot();
+  writeDiagnosis(root, diagnosis());
+  recordFromDiagnosis('Testco', { root });
+  writeDiagnosis(root, diagnosis({ decision_maker: { name: 'A. Human', title: 'Head of Eval', source: 'https://example.com/team' } }));
+  const second = recordFromDiagnosis('Testco', { root });
+
+  assert.equal(second.visits, 1);
+  assert.equal(second.decision_maker.name, 'A. Human');
+});
+
 t('a materially rewritten diagnosis is a real second visit', () => {
   // The Deepgram case: a committed SHIP file re-diagnosed onto a corrected
   // predicate. Different content, so it appends rather than replacing.

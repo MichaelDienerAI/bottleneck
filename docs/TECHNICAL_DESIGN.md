@@ -39,8 +39,8 @@ src/
   verify.js                   board token checker
   renderBrief.js              diagnosis or packet to one self-contained HTML page
   liveness.js                 delisting and posting-url checks
-  gates.test.js               81 assertions, no network
-  casefile.test.js            32 assertions, temp dirs only, never touches data/cases
+  gates.test.js               96 assertions, no network
+  casefile.test.js            34 assertions, temp dirs only, never touches data/cases
 data/                         generated, gitignored
 packets/                      generated, gitignored
 ```
@@ -115,7 +115,34 @@ That single line is the architectural commitment. No weighted total, no threshol
 | `comp:unknown` | no published band, so the floor is unconfirmed |
 | `posted:unknown` | the board published no date, so the freshness rule could not rule |
 
-Everything else — `location_tier:`, `generalist_trap:`, `bureaucracy_signal:` — is informational and never vetoes.
+Everything else — `location_tier:`, `generalist_trap:`, `bureaucracy_signal:`, `repost:detected:` — is informational and never vetoes.
+
+### Repost detection
+
+Method 8 in `.claude/references/bottleneck-detection.md` asks for a record the code could not produce: a role posted three times in nine months is the company's own dated evidence that a fix did not take, which gives both halves of a P4 causal claim with no inference between them. The reference says "track your own scan history and the same key will resurface." It does not. `data/seen.json` is a flat set of board ids with no dates, and a reposted requisition gets a **new** id, so key equality can never fire on one.
+
+`data/reposts.json` is the index that can: `(company, normalized title) → { company, title, first_seen, last_seen, ids[] }`.
+
+```js
+normalizeTitle(title) → string            // canonical form: case, accents, punctuation, whitespace
+repostKey(company, title) → string
+repostFlag(job, index, opts?) → flag | null
+updateRepostIndex(index, jobs, today) → index   // pure, returns a new object
+```
+
+`scan.js` reads the index, computes flags against it, gates every row, then folds the run into the index and writes it. The read has to happen before the update, or every id is already present and nothing is ever new. All fetched rows update the index, not just the ones that pass Gate 0 — this is scan history, not gate history.
+
+A flag fires when a `(company, title)` first seen more than `freshness.repost_min_age_days` (default 60) ago presents a posting id the index has not recorded:
+
+```
+repost:detected:first_seen_2026-06-01, posting id 2 for this title, 75 days since first seen
+```
+
+**It is informational, and that is a decision rather than an oversight.** A repost is evidence *for* spending a slot, so blocking on it would veto exactly the rows it exists to promote. It also carries a known false-positive class: two genuinely different requisitions sharing a normalized title read as a repost, and a large board with three open "Software Engineer" seats will trip it. A veto that can fire on a coincidence is a veto that gets routed around. It hands the diagnostician a question that is cheap to settle by opening both postings.
+
+Seniority words are deliberately **not** stripped in normalization. "Senior Engineer" and "Engineer" are two seats, and merging them would invent reposts that never happened. The rule also cannot see a repost that was retitled.
+
+**The index starts empty and cannot produce a signal for sixty days.** `seen.json` carries no dates, so there is nothing to backfill from; seeding `first_seen` from the current requisition's `posted` date was considered and rejected, because that date describes the current req rather than when this system first observed the title, and conflating the two would put a fabricated observation date in the record. The scan says so on the run that seeds the file.
 
 **`stale:` is a kill reason, not a flag, and it is not on that list.** Reasons and flags are different fields doing different jobs: a reason ends the row at Gate 0, a flag travels with a row that survived. A stale posting never reaches a diagnosis at all, so a `stale:` veto would be a veto on rows that cannot exist. The same holds for `seniority:`, `title:`, `location:`, and the `hard_disqualifiers` groups.
 
@@ -326,7 +353,7 @@ The loop never lets the producing agent certify its own completion. SHIP is a ch
 
 ## 9. Testing
 
-`npm test` runs five suites in order, 172 assertions, no network and no model in any of them.
+`npm test` runs five suites in order, 189 assertions, no network and no model in any of them.
 
 | Suite | Assertions | Covers |
 |---|---|---|

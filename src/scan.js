@@ -9,7 +9,18 @@ import fs from 'node:fs';
 import path from 'node:path';
 import yaml from 'js-yaml';
 import { fetchBoard } from './sources.js';
-import { gate0, rank, capPerCompany, fitScore, archetypeFloor, compositeScore, MAX_AGE_DAYS } from './gates.js';
+import {
+  gate0,
+  rank,
+  capPerCompany,
+  fitScore,
+  archetypeFloor,
+  compositeScore,
+  repostFlag,
+  updateRepostIndex,
+  REPOST_MIN_AGE_DAYS,
+  MAX_AGE_DAYS,
+} from './gates.js';
 import { openSlots } from './ledger.js';
 import { shouldSkip } from './casefile.js';
 import { delisted, unverifiable, checkUrls } from './liveness.js';
@@ -47,6 +58,19 @@ async function main() {
   }
 
   const seen = new Set(loadJson('data/seen.json', []));
+
+  // Local date, not toISOString(). A run at 23:04 in Phoenix is 06:04 UTC the
+  // next day, and a board stamped tomorrow is a board nobody trusts.
+  const d = new Date();
+  const today = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+
+  // Repost index, read before it is written. Keyed by (company, normalized
+  // title) rather than by board id, because a reposted requisition gets a new id
+  // and key equality can never catch one. See the note above repostFlag().
+  const repostIndex = loadJson('data/reposts.json', {});
+  const repostIndexWasEmpty = Object.keys(repostIndex).length === 0;
+  const repostMinAge = cfg.freshness?.repost_min_age_days ?? REPOST_MIN_AGE_DAYS;
+
   const errors = [];
   const all = [];
 
@@ -79,7 +103,12 @@ async function main() {
 
   for (const j of all) {
     const g = gate0(j, cfg);
-    const row = { ...j, comp: g.comp, flags: g.flags };
+    // Computed against the prior index and appended rather than returned by
+    // gate0, because gate0 is a pure function of one posting and this rule needs
+    // scan history. Informational: it is not in BLOCKING_FLAGS, so it costs no
+    // fit point and vetoes nothing.
+    const repost = repostFlag(j, repostIndex, { minAgeDays: repostMinAge, now: new Date() });
+    const row = { ...j, comp: g.comp, flags: repost ? [...g.flags, repost] : g.flags };
     // Fit travels with the row so the buffer can be audited without re-deriving
     // the sort. Same function rank() uses, so the two cannot drift apart.
     row.fit = fitScore(row, cfg);
@@ -134,11 +163,6 @@ async function main() {
   const room = Math.min(bufferMax, slots + 5);
   const promote = rank(archetypeFloor(capped, room), weights, cfg);
   for (const j of promote) j.score = Number(compositeScore(j, weights, cfg).toFixed(2));
-
-  // Local date, not toISOString(). A run at 23:04 in Phoenix is 06:04 UTC the
-  // next day, and a board stamped tomorrow is a board nobody trusts.
-  const d = new Date();
-  const today = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 
   // Liveness. The buffer used to be append-only: `[...existingQueue, ...promote]`
   // with no exit except promotion off the top. A req that came down the day after
@@ -230,6 +254,7 @@ async function main() {
   writeJson('data/scan-errors.json', errors);
   writeJson('data/scan-meta.json', meta);
   writeJson('data/seen.json', [...seen, ...fresh.map((j) => j.key)]);
+  writeJson('data/reposts.json', updateRepostIndex(repostIndex, all, today));
 
   console.log('');
   console.log(`fetched      ${all.length}`);
@@ -240,6 +265,14 @@ async function main() {
   console.log(`delisted     ${gone.length}   dropped from the buffer, see data/delisted.json`);
   if (unconfirmed.length)
     console.log(`unconfirmed  ${unconfirmed.length}   buffer rows whose board did not answer this run`);
+  const reposts = gated.filter((r) => r.flags.some((f) => String(f).startsWith('repost:detected')));
+  console.log(`reposts      ${reposts.length}   same title, new posting id, first seen over ${repostMinAge} days ago`);
+  for (const r of reposts) console.log(`  ${r.company} — ${r.title}`);
+  if (repostIndexWasEmpty) {
+    console.log(`  data/reposts.json was empty, so this run seeded it. No repost can be`);
+    console.log(`  detected for ${repostMinAge} days. data/seen.json carries no dates, so there is`);
+    console.log(`  nothing to backfill from — the record starts today.`);
+  }
   console.log(`closed cases ${skipped.length}   see data/skipped-cases.json`);
   console.log(`company cap  ${crowdedOut} rows held back at ${perCompanyMax}/company`);
   console.log(`promoted     ${promote.length}  buffer now ${queue.length}/${bufferMax}`);

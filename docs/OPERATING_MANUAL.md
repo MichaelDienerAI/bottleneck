@@ -48,7 +48,7 @@ Run these in a terminal:
 | `npm run walk` | Rebuilds `data/walkthrough.html` |
 | `npm run brief <company>` | Renders a diagnosis, or a packet directory, to one self-contained HTML page. Add `--pdf` for a PDF via system Chrome. Reports the clearance state it found and gates nothing |
 | `npm run verify` | Checks every board token in `profile/companies.yaml`. Writes `data/token-verification.json` |
-| `npm test` | Five suites, 172 assertions, no network. Run before you trust anything |
+| `npm test` | Five suites, 189 assertions, no network. Run before you trust anything |
 | `./bin/run.sh` | Runs the whole scheduled job by hand, exactly as launchd runs it |
 
 ## The pipeline, end to end
@@ -109,7 +109,7 @@ ls -lt data/logs/ | head            # last several runs
 
 **"Is anything broken?"**
 ```bash
-npm test                            # expect 81 + 32 + 41 + 8 + 10 passing, 172 total
+npm test                            # expect 96 + 34 + 41 + 8 + 10 passing, 189 total
 ```
 
 **"I want to see today's work."** Open `data/board.html` and `data/briefs/<today>.md` in a browser and an editor.
@@ -277,7 +277,8 @@ Then you send it. Every time.
 | `data/killed.json` | What died at Gate 0, with the reason | `scan.js` |
 | `data/delisted.json` | Buffer rows whose posting came off the board, dated | `scan.js` |
 | `data/liveness.json` | HTTP status of each buffer row's posting URL | `scan.js` |
-| `data/seen.json` | Dedupe set across cycles | `scan.js` |
+| `data/seen.json` | Dedupe set across cycles, board ids only, no dates | `scan.js` |
+| `data/reposts.json` | (company, normalized title) -> first_seen, last_seen, ids. Repost detection | `scan.js` |
 | `data/board.html` | The page you open on Monday | `report.js` |
 | `data/briefs/<date>.md` | Raw observables, no diagnosis | Brief agent |
 | `data/diagnoses/<company>-<slug>.yaml` | One diagnosis plus its audit | Diagnostician, auditor |

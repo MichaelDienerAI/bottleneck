@@ -215,6 +215,14 @@ decision_maker:
   source: https://decagon.ai/blog/self-serve
 
 verdict: PARK
+
+# Read by `node src/casefile.js --record`, which writes it into the case file
+# beside the cooling date. A park with a date and no trigger is a date with no
+# reason, so this names what must change before the row is worth reopening.
+revisit_trigger: >-
+  customer-facing pre-sales requirement dropped or dedicated agent evaluation role
+  opened
+
 reason: >-
   Why it is stuck. Decagon sells only through people. The only button on
   decagon.ai is "Get a demo." A buyer cannot sign up, start a trial, or open a

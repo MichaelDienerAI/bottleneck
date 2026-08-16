@@ -227,6 +227,12 @@ export const BLOCKING_FLAGS = [
   'comp:unknown', // no published band
   'posted:unknown', // no date published, so the freshness gate could not rule
 ];
+// `repost:detected:` is deliberately absent from that list, the same way
+// `location_tier:` is. A repost is evidence FOR spending a slot — the company
+// tried to fill the seat and could not — so blocking on it would veto the rows
+// it is meant to promote. It also carries a known false-positive class (two real
+// seats sharing a title), and a veto that can fire on a coincidence is a veto
+// that gets routed around. It informs the diagnostician and decides nothing.
 
 // Blocking flags that do NOT cost a fit point. Both name something the BOARD
 // failed to publish, not something about the role, so charging fit for them
@@ -304,6 +310,83 @@ function locationFlags(loc, cfg, now) {
     );
   }
   return flags;
+}
+
+// ---------------------------------------------------------------------------
+// Repost detection
+// ---------------------------------------------------------------------------
+//
+// Method 8 in .claude/references/bottleneck-detection.md, tier B, and it asks for
+// a record the code could not produce: "A role posted three times in nine months
+// means they cannot fill it or cannot keep it. Either way the constraint is
+// confirmed rather than hypothesized, because it survived their attempt to
+// relieve it. Track your own scan history and the same key will resurface."
+//
+// It will not resurface. data/seen.json is a flat set of board ids with no dates,
+// and a reposted requisition usually gets a NEW id, so key equality can never
+// fire on one. Catching a repost needs a different index: (company, normalized
+// title) with a first-seen date. That is what this pair of functions maintains.
+//
+// WHY THIS IS THE STRONGEST CHEAP OBSERVABLE. Nearly everything else readable
+// from outside is a company describing itself. A repost is the company's own
+// dated record that a fix did not take, which is both halves of a P4 causal
+// claim without an inference in between.
+//
+// FALSE POSITIVE CLASS, stated rather than discovered later: two genuinely
+// different requisitions sharing a normalized title read as a repost. A large
+// board with three open "Software Engineer" seats will trip it. That is why the
+// flag is informational and never a veto — it hands the diagnostician a question,
+// not a verdict, and the question is cheap to settle by opening both postings.
+//
+// WHAT IT CANNOT SEE. A repost that was retitled. Normalization is canonical
+// form only: case, accents, punctuation, whitespace. Seniority words are left
+// alone deliberately, because "Senior Engineer" and "Engineer" are two seats and
+// merging them would invent reposts that never happened.
+export const REPOST_MIN_AGE_DAYS = 60;
+
+export const normalizeTitle = (t) => canon(t);
+export const repostKey = (company, title) => `${canon(company)}::${normalizeTitle(title)}`;
+
+// Read against the index as it stood BEFORE this run folded today's ids into it.
+// Check after the update and every id is already present, so nothing is ever new.
+export function repostFlag(job, index = {}, { minAgeDays = REPOST_MIN_AGE_DAYS, now = new Date() } = {}) {
+  const entry = index?.[repostKey(job.company, job.title)];
+  if (!entry) return null; // never seen this title. today is its first_seen
+  const ids = entry.ids || [];
+  if (ids.includes(job.key)) return null; // same requisition, still up. not a repost
+  const age = ageInDays(entry.first_seen, now);
+  if (age === null || age <= minAgeDays) return null; // too recent to mean anything
+  return (
+    `repost:detected:first_seen_${entry.first_seen}, posting id ${ids.length + 1} for this title, ` +
+    `${age} days since first seen`
+  );
+}
+
+// Fold this run's rows into the index. Pure: returns a new object.
+//
+// Every fetched row updates it, not just the ones that pass Gate 0. The index is
+// scan history, not gate history, and a title that keeps getting killed on
+// seniority is still a title the company keeps reposting.
+//
+// Entries are never pruned. The whole value is the first_seen date, and a
+// pruning rule would delete exactly the old entries the rule exists to read.
+// Growth is bounded by distinct requisitions, not by run count.
+export function updateRepostIndex(index = {}, jobs = [], today) {
+  const next = { ...index };
+  for (const j of jobs) {
+    const k = repostKey(j.company, j.title);
+    const prev = next[k];
+    if (!prev) {
+      next[k] = { company: j.company, title: j.title, first_seen: today, last_seen: today, ids: [j.key] };
+      continue;
+    }
+    next[k] = {
+      ...prev,
+      last_seen: today,
+      ids: prev.ids.includes(j.key) ? prev.ids : [...prev.ids, j.key],
+    };
+  }
+  return next;
 }
 
 // Fit. The middle sort key, and the fix for a defect measured 2026-08-12.

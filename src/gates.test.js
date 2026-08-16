@@ -5,7 +5,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import yaml from 'js-yaml';
 import assert from 'node:assert';
-import { gate0, rank, capPerCompany, blockingFlags, isBlocked, BLOCKING_FLAGS, fitScore, compositeScore, archetypeFloor, WEIGHT_MULTIPLIER, ageInDays, MAX_AGE_DAYS } from './gates.js';
+import { gate0, rank, capPerCompany, blockingFlags, isBlocked, BLOCKING_FLAGS, fitScore, compositeScore, archetypeFloor, WEIGHT_MULTIPLIER, ageInDays, MAX_AGE_DAYS, normalizeTitle, repostKey, repostFlag, updateRepostIndex, REPOST_MIN_AGE_DAYS } from './gates.js';
 
 const ROOT = path.resolve(import.meta.dirname, '..');
 const cfg = yaml.load(fs.readFileSync(path.join(ROOT, 'profile/gates.example.yaml'), 'utf8'));
@@ -790,6 +790,147 @@ t('a stale row is killed even when everything else about it is perfect', () => {
   );
   assert.equal(r.pass, false);
   assert.deepEqual(r.reasons.map((x) => x.split(':')[0]), ['stale']);
+});
+
+// ---------------------------------------------------------------------------
+// Repost detection
+//
+// Method 8 in the reference asks for the one observable that is a company's own
+// dated record that a fix did not take. The tests below are about the two ways
+// this rule can be wrong: missing a real repost because the id changed, and
+// inventing one out of an ordinary re-scan.
+// ---------------------------------------------------------------------------
+
+t('titles normalize to a canonical form, and no further', () => {
+  assert.equal(normalizeTitle('Senior SWE, Model Evaluation'), 'senior swe model evaluation');
+  assert.equal(normalizeTitle('  Senior   SWE — Model   Evaluation  '), 'senior swe model evaluation');
+  assert.equal(normalizeTitle('Zürich Support Lead'), 'zurich support lead');
+  // Seniority is NOT stripped. Two rungs are two seats, and merging them would
+  // invent reposts that never happened.
+  assert.notEqual(normalizeTitle('Senior Engineer'), normalizeTitle('Engineer'));
+});
+
+t('the repost key is company plus title, so two companies never collide', () => {
+  assert.notEqual(repostKey('Deepgram', 'Engineer'), repostKey('Decagon', 'Engineer'));
+  assert.equal(repostKey('Character.AI', 'TPM, Alignment'), repostKey('character ai', 'tpm alignment'));
+});
+
+t('an unseen title is not a repost, it is a first sighting', () => {
+  assert.equal(repostFlag(job({ key: 'a:1', title: 'Senior Conversational AI Engineer' }), {}), null);
+});
+
+t('the same posting id seen again is a dedupe, never a repost', () => {
+  // This is the ordinary case: every scan re-reads every open req. Flagging it
+  // would fire on the whole board every run, which is the same as not having a
+  // rule. Old enough to qualify on age, so only the id check can save it.
+  const index = updateRepostIndex({}, [job({ key: 'a:1' })], daysAgo(200));
+  assert.equal(repostFlag(job({ key: 'a:1' }), index), null);
+});
+
+t('a new posting id for an old title is a repost, and it names the first-seen date', () => {
+  const first = daysAgo(120);
+  const index = updateRepostIndex({}, [job({ key: 'ashby:Deepgram:aaa', company: 'Deepgram' })], first);
+  const flag = repostFlag(job({ key: 'ashby:Deepgram:bbb', company: 'Deepgram' }), index);
+
+  assert.ok(flag, 'a new id on a title first seen 120 days ago is the whole point of the rule');
+  assert.ok(flag.startsWith(`repost:detected:first_seen_${first}`), flag);
+  assert.ok(flag.includes('posting id 2'), flag);
+  assert.ok(flag.includes('120 days'), flag);
+});
+
+t('a new id on a title first seen recently is not yet evidence of anything', () => {
+  // Below the threshold a new id is more likely an edit, a duplicate posting, or
+  // a second seat than a failed hire. P3: a limit nobody has reached.
+  const index = updateRepostIndex({}, [job({ key: 'a:1' })], daysAgo(REPOST_MIN_AGE_DAYS - 1));
+  assert.equal(repostFlag(job({ key: 'a:2' }), index), null);
+
+  const older = updateRepostIndex({}, [job({ key: 'a:1' })], daysAgo(REPOST_MIN_AGE_DAYS + 1));
+  assert.ok(repostFlag(job({ key: 'a:2' }), older));
+});
+
+t('the threshold is configurable per call', () => {
+  const index = updateRepostIndex({}, [job({ key: 'a:1' })], daysAgo(30));
+  assert.equal(repostFlag(job({ key: 'a:2' }), index), null);
+  assert.ok(repostFlag(job({ key: 'a:2' }), index, { minAgeDays: 20 }));
+});
+
+t('a third posting counts the ids it has actually seen', () => {
+  const first = daysAgo(300);
+  let index = updateRepostIndex({}, [job({ key: 'a:1' })], first);
+  index = updateRepostIndex(index, [job({ key: 'a:2' })], daysAgo(150));
+  const flag = repostFlag(job({ key: 'a:3' }), index);
+  assert.ok(flag.includes('posting id 3'), flag);
+  assert.equal(index[repostKey('Test', job().title)].ids.length, 2);
+});
+
+t('the index keeps first_seen and moves last_seen', () => {
+  const first = daysAgo(90);
+  let index = updateRepostIndex({}, [job({ key: 'a:1' })], first);
+  index = updateRepostIndex(index, [job({ key: 'a:2' })], '2026-08-15');
+  const entry = index[repostKey('Test', job().title)];
+
+  assert.equal(entry.first_seen, first, 'first_seen is the whole value of the index and must never move');
+  assert.equal(entry.last_seen, '2026-08-15');
+  assert.deepEqual(entry.ids, ['a:1', 'a:2']);
+  assert.equal(entry.company, 'Test');
+});
+
+t('updateRepostIndex does not mutate what it was given', () => {
+  const index = updateRepostIndex({}, [job({ key: 'a:1' })], daysAgo(90));
+  const before = JSON.stringify(index);
+  updateRepostIndex(index, [job({ key: 'a:2' })], '2026-08-15');
+  assert.equal(JSON.stringify(index), before, 'a pure function that edits its input will corrupt the file on disk');
+});
+
+t('a repost flag is informational and can never veto Gate 0', () => {
+  // The rule that matters. A repost is evidence FOR spending a slot, so blocking
+  // on it would veto exactly the rows it exists to promote. Same class as
+  // location_tier:, which fired on 91% of rows when it was briefly a veto.
+  const index = updateRepostIndex({}, [job({ key: 'a:1' })], daysAgo(200));
+  const flag = repostFlag(job({ key: 'a:2' }), index);
+
+  assert.ok(!BLOCKING_FLAGS.some((p) => flag.startsWith(p)), 'repost: must not appear in BLOCKING_FLAGS');
+  assert.deepEqual(blockingFlags([flag]), []);
+  assert.equal(isBlocked([flag]), false);
+});
+
+t('a repost flag costs no fit point', () => {
+  const index = updateRepostIndex({}, [job({ key: 'a:1' })], daysAgo(200));
+  const flag = repostFlag(job({ key: 'a:2' }), index);
+  const row = { ...job(), comp: { min: 200000, max: 240000 } };
+  assert.equal(fitScore({ ...row, flags: [flag] }, cfg), fitScore({ ...row, flags: [] }, cfg));
+});
+
+t('a reposted row still passes Gate 0 on its own merits, and a bad one still fails', () => {
+  // The flag rides alongside gate0's verdict and changes nothing about it.
+  const index = updateRepostIndex({}, [job({ key: 'a:1' })], daysAgo(200));
+  const good = job({ key: 'a:2' });
+  const g = gate0(good, cfg);
+  assert.equal(g.pass, true);
+
+  // Adding the flag must not change what blocks. Asserting isBlocked is false
+  // outright would test the fixture instead: job() publishes no band, so
+  // comp:unknown blocks it whether or not a repost was ever detected.
+  const withRepost = [...g.flags, repostFlag(good, index)];
+  assert.deepEqual(blockingFlags(withRepost), blockingFlags(g.flags));
+
+  // A repost of a role that fails on title is still killed. The flag is not a
+  // back door around Gate 0.
+  const bad = job({ key: 'a:2', title: 'Chief Financial Officer' });
+  assert.equal(gate0(bad, cfg).pass, false);
+});
+
+t('two companies reposting the same title do not contaminate each other', () => {
+  const index = updateRepostIndex({}, [job({ key: 'x:1', company: 'Deepgram' })], daysAgo(200));
+  assert.equal(repostFlag(job({ key: 'y:1', company: 'Decagon' }), index), null);
+  assert.ok(repostFlag(job({ key: 'x:2', company: 'Deepgram' }), index));
+});
+
+t('an index entry with no usable first_seen flags nothing', () => {
+  // P5 rather than a guess. A corrupt or hand-edited entry must not be read as
+  // an infinitely old title, which would flag every new id on that board.
+  assert.equal(repostFlag(job({ key: 'a:2' }), { [repostKey('Test', job().title)]: { first_seen: null, ids: ['a:1'] } }), null);
+  assert.equal(repostFlag(job({ key: 'a:2' }), { [repostKey('Test', job().title)]: { first_seen: 'not a date', ids: ['a:1'] } }), null);
 });
 
 console.log(`\n${pass} passing`);

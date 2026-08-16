@@ -203,6 +203,32 @@ export function effectiveVerdict(doc, stage = 'diagnose') {
   return doc?.verdict ?? null;
 }
 
+// The digest identifies THE READING, not the bytes of the file.
+//
+// It hashed the raw text once. Adding a `revisit_trigger:` field to two parked
+// diagnoses then read as a second visit to each company, the evidence keys were
+// unchanged, noProgress fired, and both companies closed as DEAD on an edit that
+// surfaced no new evidence and made no new claim. A comment, a typo fix, or a
+// reformat would have done the same thing.
+//
+// So the digest covers only what constitutes a reading: the hypothesis, the
+// evidence set, the verdict chain, the kill query, and what the auditor struck.
+// Prose, triggers, comments, and the decision-maker are outside it. Finding the
+// human is a fact added to the file, not a second look at the company, and the
+// upsert merges it onto the existing visit rather than filing a new one.
+export function readingDigest(visit) {
+  const reading = {
+    hypothesis: visit.hypothesis ?? null,
+    evidence_keys: [...(visit.evidence_keys ?? [])].sort(),
+    diagnosis_verdict: visit.diagnosis_verdict ?? null,
+    audit_verdict: visit.audit_verdict ?? null,
+    coverage_score: visit.coverage_score ?? null,
+    queries: [...(visit.queries ?? [])].sort(),
+    struck_claims: [...(visit.struck_claims ?? [])].sort(),
+  };
+  return crypto.createHash('sha256').update(JSON.stringify(reading)).digest('hex').slice(0, 12);
+}
+
 // Pure. Takes the parsed YAML, returns the visit row. Every field traces to
 // something the auditor read; nothing here is inferred.
 export function visitFromDiagnosis(doc, { artifact = null, digest = null, stage = 'diagnose' } = {}) {
@@ -260,8 +286,7 @@ export function resolveDiagnosis(target, root = ROOT) {
 // Writes the case file from an audited diagnosis. Idempotent by artifact digest.
 export function recordFromDiagnosis(target, { root = ROOT, parkDays = 30, stage = 'diagnose' } = {}) {
   const file = resolveDiagnosis(target, root);
-  const text = fs.readFileSync(file, 'utf8');
-  const doc = yaml.load(text);
+  const doc = yaml.load(fs.readFileSync(file, 'utf8'));
 
   if (!doc?.company) throw new Error(`${path.relative(root, file)} names no company. Nothing to file it under.`);
 
@@ -275,16 +300,12 @@ export function recordFromDiagnosis(target, { root = ROOT, parkDays = 30, stage 
     );
   }
 
-  const digest = crypto.createHash('sha256').update(text).digest('hex').slice(0, 12);
   const existing = load(doc.company, root);
   const created = !existing;
   const caseFile = existing ?? create(doc.company, doc.archetype ?? null);
 
-  const visit = visitFromDiagnosis(doc, {
-    artifact: path.relative(root, file),
-    digest,
-    stage,
-  });
+  const visit = visitFromDiagnosis(doc, { artifact: path.relative(root, file), stage });
+  visit.artifact_digest = readingDigest(visit);
   recordVisit(caseFile, visit, root);
 
   // PARK carries a date and a written trigger, or PARK means nothing. The

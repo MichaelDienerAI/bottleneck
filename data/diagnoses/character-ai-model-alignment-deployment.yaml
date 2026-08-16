@@ -317,6 +317,13 @@ decision_maker:
     surfaced by search. All three are weak and none is a backstage trace.
 
 verdict: PARK
+
+# Read by `node src/casefile.js --record`, which writes it into the case file
+# beside the cooling date. A park with a date and no trigger is a date with no
+# reason, so this names what must change before the row is worth reopening.
+revisit_trigger: >-
+  deformation_test_bank published at public URL or named hiring manager identified
+
 reason: >
   The constraint is the most legible I have read so far and it is NOT why this
   parks. Four independent legs support it: a dated third-party measurement of the
