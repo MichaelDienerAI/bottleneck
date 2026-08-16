@@ -38,9 +38,11 @@ src/
   ledger.js                   drum accounting, tracking, RAND readout
   verify.js                   board token checker
   renderBrief.js              diagnosis or packet to one self-contained HTML page
+  queue.js                    strike a buffer row, pick its replacement
   liveness.js                 delisting and posting-url checks
   gates.test.js               96 assertions, no network
   casefile.test.js            34 assertions, temp dirs only, never touches data/cases
+  queue.test.js               19 assertions, pure functions only
 data/                         generated, gitignored
 packets/                      generated, gitignored
 ```
@@ -242,6 +244,35 @@ The server hook exists because `argsFor()` grants the dashboard's model `Task, R
 
 ---
 
+## 5a. Striking a buffer row
+
+Three things remove a row from the buffer, and only one of them is a judgment. Gate 0 kills on a rule and writes `data/killed.json`. Liveness delists on the board's own record and writes `data/delisted.json`. A **strike** is Michael reading a row and saying no, and it writes `data/struck.json`. Without its own log the removal would be invisible: a row that vanished from the buffer with nothing on disk explaining why.
+
+`src/queue.js` holds the mechanics as pure functions; the dashboard does the reading and writing.
+
+```js
+strikeRow(queue, key) → { queue, struck }
+strikeRecord(row, {at, reason?, source?}) → record
+eligibleBackfill(candidates, opts) → rows[]     // ranked order preserved
+pickBackfill(candidates, opts) → row | null
+```
+
+**A strike is not a verdict on the company.** A company can hold two buffer rows, and striking one says nothing about the other. Nothing in this path touches a case file. Closing a company is the diagnostician's call, spent from the drum and audited; a checkbox on a web page is not that.
+
+**Backfill excludes five classes**, each of which would otherwise reintroduce a decision the system already made: rows already queued, rows previously struck, rows the board delisted, companies `shouldSkip` closes, and anything over the per-company cap counted against the queue *after* the strike.
+
+**Two preferences decide the replacement.** First a company other than the one just struck; then an archetype with no row in the buffer, which is `archetypeFloor()` applied one row at a time. The company preference came from measurement: striking OpenAI's alignment row on 2026-08-16 backfilled a *different OpenAI row*, because the strike left `frontier_labs` unrepresented and OpenAI held the best candidate in it. Correct by the floor rule and useless to read. Rows from the struck company move to the back rather than out — if that company holds the only candidate for an unrepresented archetype it still wins, because losing the archetype costs more than the repetition does.
+
+**The buffer never grows on a strike.** One row out, at most one row in. Its size was set by the rope at scan time, `min(buffer_max, slots + 5)`, and slots may have been spent since.
+
+`POST /api/strike` is the only route that edits `data/queue.json`. It refuses while a job is running (`/api/run` resolves a company against the queue before spawning, so editing it mid-run could hand the child a row that no longer exists), it addresses rows by board key rather than company name (a company can hold two rows), and it writes the strike log *before* the queue, so a crash between the two leaves a log entry with no removal rather than a removal with no log.
+
+`scan.js` filters struck keys out of promotion. Promotion already draws only from never-seen keys, so a struck row could not return by that path — but that held by accident, and the rule is worth stating in code.
+
+`data/board.html` is written once per scan and has no server behind it, so it cannot offer this. It carries a line pointing at `npm start` instead.
+
+---
+
 ## 6. Ledger
 
 `data/ledger.json`, an append-only array. `weekStart` normalizes any date to the preceding Monday, which is how weekly slots get counted.
@@ -353,7 +384,7 @@ The loop never lets the producing agent certify its own completion. SHIP is a ch
 
 ## 9. Testing
 
-`npm test` runs five suites in order, 189 assertions, no network and no model in any of them.
+`npm test` runs six suites in order, 208 assertions, no network and no model in any of them.
 
 | Suite | Assertions | Covers |
 |---|---|---|

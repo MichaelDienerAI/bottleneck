@@ -143,10 +143,20 @@ async function main() {
   // buffer just because a later scan re-read the same posting.
   const rankedFresh = rank(gated.filter((j) => freshKeys.has(j.key)), weights, cfg);
 
+  // Rows Michael struck by hand from the dashboard. Promotion already draws only
+  // from never-seen keys, so a struck row cannot return by that path — but it
+  // holds by accident rather than by rule, and the rule is worth stating: a row
+  // a person declined does not come back because the code changed shape later.
+  const struckKeys = new Set(loadJson('data/struck.json', []).map((r) => r.key));
+
   // Case-file gate. A company already killed, shipped, or cooling never consumes
   // a slot again. Without this the pipeline reopens closed cases forever.
   const skipped = [];
   const eligible = rankedFresh.filter((j) => {
+    if (struckKeys.has(j.key)) {
+      skipped.push({ company: j.company, reason: 'struck by hand from the dashboard' });
+      return false;
+    }
     const s = shouldSkip(j.company);
     if (s.skip) skipped.push({ company: j.company, reason: s.reason });
     return !s.skip;

@@ -16,7 +16,7 @@ Download the repository files and unzip them into a folder. Open that folder in 
 cd bottleneck
 node --version        # must be 18 or higher
 npm install
-npm test              # expect 189 passing across 5 suites: 96 gates, 34 casefile, 41 schema, 8 automation, 10 liveness
+npm test              # expect 208 passing across 6 suites: 96 gates, 34 casefile, 19 queue, 41 schema, 8 automation, 10 liveness
 ```
 
 If `npm test` fails, stop and fix that before opening Claude Code. Gate 0 decides everything the bottleneck resource ever sees, the schemas decide what a subagent may hand back, and the automation suite decides what happens at 7am when something has already gone wrong.

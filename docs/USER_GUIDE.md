@@ -122,6 +122,28 @@ The board tells you how many slots you have left, what came in, what got thrown 
 
 The brief gives you three companies with the evidence already collected.
 
+### Throwing a job out of the queue
+
+The board is a picture. It is written once per scan and cannot change anything. When you want to *act* on the queue, start the dashboard:
+
+```bash
+npm start          # then open http://localhost:3000
+```
+
+Three sections there answer three different questions.
+
+**Queue** is the ten rows in front of the drum. Each card has a **strike** checkbox in its top corner. Tick it and two buttons appear: **Delete from queue** and **Cancel**. Cancel puts the card back exactly as it was. Nothing happens on the tick itself — the removal takes a second, deliberate click.
+
+**Next up** is everything that passed Gate 0 and is not in the queue. This is the bench. When you delete a row, the top eligible row here takes its place immediately, and you are back to a full buffer without running a scan.
+
+**Struck** is what you threw out, newest first. A struck job never comes back — not from a backfill, not from the next scan.
+
+Two things worth knowing before you use it.
+
+Striking a job is **not** a judgment about the company. A company can hold two rows in the queue, and throwing one out says nothing about the other. Nothing about a strike closes a company; only a diagnosis does that.
+
+The replacement is not always the highest-scoring row on the bench. It prefers a company other than the one you just threw out, and then a kind of company that has no row in the queue at all. Otherwise every strike would narrow the queue toward whatever it already holds — and throwing out one OpenAI job would hand you another one.
+
 ### Then, one to two hours per company
 
 In Claude Code:

@@ -26,6 +26,9 @@ import path from 'node:path';
 import { spawn } from 'node:child_process';
 import yaml from 'js-yaml';
 import { openSlots, loadLedger, weekStart } from './src/ledger.js';
+import { shouldSkip } from './src/casefile.js';
+import { compositeScore } from './src/gates.js';
+import { strikeRow, strikeRecord, eligibleBackfill, pickBackfill } from './src/queue.js';
 
 const ROOT = path.resolve(import.meta.dirname);
 const PORT = Number(process.env.PORT || 3000);
@@ -49,6 +52,14 @@ const readJson = (p, fallback) => {
   } catch {
     return fallback;
   }
+};
+
+const writeJson = (p, v) =>
+  fs.writeFileSync(path.join(ROOT, p), JSON.stringify(v, null, 2) + '\n');
+
+const localToday = () => {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 };
 
 const readYaml = (p) => {
@@ -137,13 +148,18 @@ function state() {
   const slots = openSlots(ROOT, cfg);
   const today = new Date().toISOString().slice(0, 10);
 
-  const rows = readQueue().map((j, i) => {
+  const queue = readQueue();
+  const rows = queue.map((j, i) => {
     const file = diagnosisFile(j.company, j.title);
     const d = file ? readYaml(path.relative(ROOT, file)) : null;
     const g = d ? gatesFor(d) : null;
     const reportRel = file ? path.relative(ROOT, file).replace(/\.ya?ml$/, '.html') : null;
     return {
       rank: i + 1,
+      // The board key. /api/strike addresses a row by this and not by company,
+      // because a company can hold two rows and striking by name would remove
+      // whichever one happened to be first.
+      key: j.key,
       company: j.company,
       title: j.title,
       archetype: j.archetype || '',
@@ -172,6 +188,9 @@ function state() {
     };
   });
 
+  const waiting = bench(queue, cfg);
+  const struck = readJson('data/struck.json', []);
+
   return {
     today,
     weekStart: weekStart(),
@@ -180,6 +199,22 @@ function state() {
     used: cap - slots,
     sent: loadLedger(ROOT).length,
     rows,
+    bufferMax: cfg.drum?.buffer_max ?? 10,
+    bench: waiting.slice(0, 6).map((c) => ({
+      key: c.key,
+      company: c.company,
+      title: c.title,
+      archetype: c.archetype || '',
+      fit: c.fit ?? null,
+      comp: c.comp ? { min: c.comp.min ?? null, max: c.comp.max ?? null } : null,
+    })),
+    benchTotal: waiting.length,
+    struck: struck.slice(-8).reverse().map((r) => ({
+      company: r.company,
+      title: r.title,
+      struck_at: r.struck_at,
+    })),
+    struckTotal: struck.length,
     job: current ? jobView(current) : null,
   };
 }
@@ -187,6 +222,32 @@ function state() {
 function readQueue() {
   const q = readJson('data/queue.json', []);
   return Array.isArray(q) ? q : q.rows || q.queue || [];
+}
+
+// Archetype allocation weights, read the same way scan.js reads them, so a
+// backfilled row carries a score computed by the same function that ordered the
+// buffer. A replacement scored by a different rule would sort against rows it
+// is supposed to sit beside.
+function archetypeWeights() {
+  const registry = readYaml('profile/companies.yaml');
+  const weights = {};
+  for (const [archetype, block] of Object.entries(registry?.archetypes || {})) {
+    weights[archetype] = block.weight;
+  }
+  return weights;
+}
+
+// Everything eligible to take a vacated buffer slot, ranked. Shown on the page
+// as the bench, and drawn from by /api/strike. One function for both, so what
+// the page promises is what the strike actually does.
+function bench(queue, cfg) {
+  return eligibleBackfill(readJson('data/candidates.json', []), {
+    queue,
+    struckKeys: new Set(readJson('data/struck.json', []).map((r) => r.key)),
+    delistedKeys: new Set(readJson('data/delisted.json', []).map((r) => r.key)),
+    isClosed: (company) => shouldSkip(company).skip,
+    maxPerCompany: cfg.drum?.max_per_company ?? 2,
+  });
 }
 
 function packetsFor(company) {
@@ -439,6 +500,81 @@ const server = http.createServer((req, res) => {
     return;
   }
 
+  // Strike one buffer row and backfill the slot it leaves.
+  //
+  // The only route that edits data/queue.json. Three guards, in this order:
+  //
+  //   1. Not while a job runs. /api/run resolves a company against the queue
+  //      before it spawns, so editing the queue mid-run could hand the child a
+  //      row that no longer exists.
+  //   2. The key has to name a row in the queue. Same allowlist discipline as
+  //      /api/run: an unrecognized key is a 400, never a no-op that reports OK.
+  //   3. confirm must be true. The page asks with two buttons; this makes a
+  //      stray POST from anywhere else fail closed.
+  //
+  // It records the strike before it writes the queue, so a crash between the two
+  // leaves a log entry with no removal rather than a removal with no log.
+  if (req.method === 'POST' && u.pathname === '/api/strike') {
+    let raw = '';
+    req.on('data', (c) => {
+      raw += c;
+      if (raw.length > 4096) req.destroy();
+    });
+    req.on('end', () => {
+      let body;
+      try {
+        body = JSON.parse(raw || '{}');
+      } catch {
+        return json(res, 400, { error: 'bad json' });
+      }
+
+      if (current && !current.done) return json(res, 409, { error: 'a job is running. Wait for it to finish.' });
+
+      const queue = readQueue();
+      const { queue: next, struck } = strikeRow(queue, body.key);
+      if (!struck) return json(res, 400, { error: 'key is not a row in data/queue.json' });
+      if (!body.confirm) return json(res, 428, { error: 'confirm required', removes: struck.company });
+
+      const cfg = readYaml('profile/gates.yaml') || readYaml('profile/gates.example.yaml') || {};
+      const today = localToday();
+
+      const log = readJson('data/struck.json', []);
+      log.push(strikeRecord(struck, { at: today, reason: body.reason ?? null }));
+      writeJson('data/struck.json', log);
+
+      // Backfill from the bench, which already excludes the row just struck
+      // because data/struck.json was written first.
+      const pick = pickBackfill(readJson('data/candidates.json', []), {
+        queue: next,
+        struckKeys: new Set(log.map((r) => r.key)),
+        delistedKeys: new Set(readJson('data/delisted.json', []).map((r) => r.key)),
+        isClosed: (company) => shouldSkip(company).skip,
+        maxPerCompany: cfg.drum?.max_per_company ?? 2,
+        avoidCompany: struck.company,
+      });
+
+      // Replace one with at most one. The buffer never grows on a strike: its
+      // size was set by the rope at scan time (min(buffer_max, slots + 5)), and
+      // slots may have been spent since.
+      if (pick) {
+        next.push({
+          ...pick,
+          score: Number(compositeScore(pick, archetypeWeights(), cfg).toFixed(2)),
+          backfilled_at: today,
+          backfilled_for: struck.key,
+        });
+      }
+      writeJson('data/queue.json', next);
+
+      return json(res, 200, {
+        struck: { company: struck.company, title: struck.title },
+        backfilled: pick ? { company: pick.company, title: pick.title } : null,
+        queue: next.length,
+      });
+    });
+    return;
+  }
+
   json(res, 404, { error: 'not found' });
 });
 
@@ -524,6 +660,33 @@ iframe { width:100%; height:78vh; border:1px solid var(--rule); background:#fff;
 .viewer-head { display:flex; justify-content:space-between; align-items:baseline; gap:14px; flex-wrap:wrap; }
 .pkt { font-size:13px; }
 .pkt a { font-family:var(--mono); font-size:11.5px; margin-right:12px; }
+
+/* Strike. The checkbox sits in the card header and reveals its own confirm row,
+   so the decision and its consequence are in the same place on the page. */
+.card-top { justify-content:space-between; }
+.card-id { display:flex; gap:10px; align-items:baseline; min-width:0; }
+.strike-box { flex:none; display:flex; align-items:center; gap:6px; cursor:pointer;
+              font-family:var(--mono); font-size:10px; letter-spacing:0.08em;
+              text-transform:uppercase; color:var(--muted); }
+.strike-box input { accent-color:var(--accent); cursor:pointer; margin:0; }
+.confirm { display:none; border:1.5px solid var(--accent); padding:10px 12px; gap:8px;
+           flex-direction:column; }
+.card.striking .confirm { display:flex; }
+.card.striking { border-color:var(--accent); }
+.confirm p { margin:0; font-size:12.5px; }
+button.act.danger { border-color:var(--accent); color:var(--accent); }
+button.act.danger:hover:not(:disabled) { background:var(--accent); color:#fff; }
+
+.bench { list-style:none; margin:0; padding:0; border:1px solid var(--rule); background:#fff; }
+.bench li { display:flex; gap:12px; align-items:baseline; padding:9px 15px;
+            border-bottom:1px solid var(--rule); font-size:13.5px; }
+.bench li:last-child { border-bottom:0; }
+.bench .n { font-family:var(--mono); font-size:11px; color:var(--muted); width:18px; flex:none; }
+.bench .co { font-weight:600; }
+.bench .tt { color:var(--muted); flex:1; min-width:0; }
+.bench .meta { font-family:var(--mono); font-size:10.5px; letter-spacing:0.06em;
+               text-transform:uppercase; color:var(--muted); flex:none; }
+.empty { border:1px dashed var(--rule); padding:14px 15px; color:var(--muted); font-size:13.5px; }
 </style>
 </head>
 <body>
@@ -547,8 +710,22 @@ iframe { width:100%; height:78vh; border:1px solid var(--rule); background:#fff;
   and nothing else. No mail client, no ATS, no posting. The send stays yours, somewhere else.
 </div>
 
-<h2>Queue</h2>
+<h2>Queue <span id="queuecount" class="muted" style="text-transform:none;letter-spacing:0"></span></h2>
 <div class="cards" id="cards"></div>
+
+<h2>Next up <span id="benchcount" class="muted" style="text-transform:none;letter-spacing:0"></span></h2>
+<p class="muted" style="margin:-4px 0 12px;font-size:13.5px">
+  Passed Gate 0, not in the buffer. Strike a queue row and the top eligible row here takes its place.
+  An archetype with no row in the buffer goes first, which is why the top of this list is not always the highest score.
+</p>
+<ul class="bench" id="bench"></ul>
+
+<h2>Struck <span id="struckcount" class="muted" style="text-transform:none;letter-spacing:0"></span></h2>
+<p class="muted" style="margin:-4px 0 12px;font-size:13.5px">
+  Rows you removed by hand, newest first, from <span class="mono">data/struck.json</span>.
+  A struck row never returns on its own — not from a backfill and not from the next scan.
+</p>
+<ul class="bench" id="struck"></ul>
 
 <h2>Run log</h2>
 <details id="log" open>
@@ -591,7 +768,10 @@ function card(r) {
   const cov = d && d.coverage != null ? '<span class="badge">Coverage ' + d.coverage + '</span>' : '';
 
   el.innerHTML =
-    '<div class="card-top"><span class="rank">' + r.rank + '</span><span class="co">' + r.company + '</span></div>' +
+    '<div class="card-top">' +
+      '<span class="card-id"><span class="rank">' + r.rank + '</span><span class="co">' + r.company + '</span></span>' +
+      '<label class="strike-box"><input type="checkbox"> strike</label>' +
+    '</div>' +
     '<p class="ttl">' + r.title + '</p>' +
     '<div class="facts"><span>' + money(r.comp) + '</span>' +
     (r.score != null ? '<span>score ' + r.score + '</span>' : '') +
@@ -601,7 +781,39 @@ function card(r) {
     '<div style="display:flex;gap:6px;flex-wrap:wrap">' + badge + cov + struck + '</div>' +
     gates +
     (d && d.sameDay ? '<p class="muted" style="font-size:12.5px;margin:0">Diagnosed today. Running again spends a second slot on the same company.</p>' : '') +
+    '<div class="confirm"></div>' +
     '<div class="actions"></div>';
+
+  // The strike checkbox and its two buttons. Nothing happens on the check
+  // itself — it only reveals the choice, and Cancel puts the card back exactly
+  // as it was. The removal needs a second, deliberate click.
+  const box = el.querySelector('.strike-box input');
+  const confirm = el.querySelector('.confirm');
+
+  const note = document.createElement('p');
+  note.innerHTML = 'Remove <b>' + r.company + '</b> from the queue?' +
+    (d ? ' Its diagnosis stays on disk.' : '') +
+    ' The next eligible row takes the slot. This does not close the company.';
+  confirm.appendChild(note);
+
+  const confirmActs = document.createElement('div');
+  confirmActs.className = 'actions';
+
+  const del = document.createElement('button');
+  del.className = 'act danger';
+  del.textContent = 'Delete from queue';
+  del.disabled = running;
+  del.onclick = () => strike(r.key, r.company);
+  confirmActs.appendChild(del);
+
+  const cancel = document.createElement('button');
+  cancel.className = 'act';
+  cancel.textContent = 'Cancel';
+  cancel.onclick = () => { box.checked = false; el.classList.remove('striking'); };
+  confirmActs.appendChild(cancel);
+
+  confirm.appendChild(confirmActs);
+  box.onchange = () => el.classList.toggle('striking', box.checked);
 
   const acts = el.querySelector('.actions');
 
@@ -664,6 +876,21 @@ async function run(action, company, alreadyToday) {
   document.getElementById('log').open = true;
 }
 
+async function strike(key, company) {
+  const res = await fetch('/api/strike', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ key, confirm: true })
+  });
+  const body = await res.json().catch(() => ({}));
+  if (!res.ok) { alert(body.error || 'strike failed'); return; }
+  await load();
+  const took = body.backfilled
+    ? body.backfilled.company + ' — ' + body.backfilled.title + ' took the slot.'
+    : 'Nothing eligible on the bench, so the buffer is one row shorter until the next scan.';
+  document.getElementById('logsum').textContent = 'Struck ' + company + '. ' + took;
+}
+
 function line(l) {
   const box = document.getElementById('lines');
   const div = document.createElement('div');
@@ -684,6 +911,28 @@ async function load() {
   const cards = document.getElementById('cards');
   cards.innerHTML = '';
   s.rows.forEach(r => cards.appendChild(card(r)));
+
+  document.getElementById('queuecount').textContent =
+    ' — ' + s.rows.length + ' of ' + s.bufferMax + ' rows in front of the drum';
+
+  const bench = document.getElementById('bench');
+  document.getElementById('benchcount').textContent =
+    ' — ' + s.benchTotal + ' eligible' + (s.benchTotal > s.bench.length ? ', showing ' + s.bench.length : '');
+  bench.innerHTML = s.bench.length
+    ? s.bench.map((b, i) =>
+        '<li><span class="n">' + (i + 1) + '</span><span class="co">' + b.company + '</span>' +
+        '<span class="tt">' + b.title + '</span>' +
+        '<span class="meta">' + (b.archetype || '') + (b.fit != null ? ' · fit ' + b.fit : '') + '</span></li>').join('')
+    : '<li><span class="tt muted">Nothing eligible. Every Gate 0 survivor is already queued, struck, delisted, or belongs to a closed company. Run a scan.</span></li>';
+
+  const struck = document.getElementById('struck');
+  document.getElementById('struckcount').textContent = s.struckTotal ? ' — ' + s.struckTotal + ' total' : '';
+  struck.innerHTML = s.struck.length
+    ? s.struck.map(b =>
+        '<li><span class="n">×</span><span class="co">' + b.company + '</span>' +
+        '<span class="tt">' + b.title + '</span>' +
+        '<span class="meta">' + b.struck_at + '</span></li>').join('')
+    : '<li><span class="tt muted">Nothing struck yet.</span></li>';
   if (s.job) {
     document.getElementById('logsum').textContent =
       (s.job.done ? 'Finished' : 'Running') + ' · /' + s.job.action + ' ' + s.job.company;

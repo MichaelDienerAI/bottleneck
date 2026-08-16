@@ -349,6 +349,9 @@ ${funnel
 <h2>In the queue</h2>
 <p class="lede">Ranked best first. An arrow means something has to be settled before you write to them; a job with arrows is not disqualified, it just needs an answer you have not given yet.</p>
 <ol class="queue">${buffer || '<li class="note" style="padding:16px 0">Empty. Run a scan.</li>'}</ol>
+<p class="note" style="margin-top:16px">This page is written once per scan and cannot change anything. To strike a row
+and pull the next one up behind it, run <code>npm start</code> and open
+<a href="http://localhost:3000">localhost:3000</a>, which reads the same files and can write to them.</p>
 ${
   Object.keys(spread).length
     ? `<p class="note" style="margin-top:16px">Spread across kinds of company: ${Object.entries(spread)
