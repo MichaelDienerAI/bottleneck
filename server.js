@@ -640,7 +640,7 @@ header { display:flex; justify-content:space-between; align-items:flex-start;
 .gates .m { font-family:var(--mono); width:13px; flex:none; }
 .gates li.no { color:var(--ink); }
 .gates li.yes { color:var(--muted); }
-.actions { display:flex; gap:8px; flex-wrap:wrap; margin-top:2px; }
+.actions, .confirm-actions { display:flex; gap:8px; flex-wrap:wrap; margin-top:2px; }
 button.act { border:1.5px solid var(--ink); background:transparent; color:var(--ink);
              font-family:var(--mono); font-size:10.5px; font-weight:600; letter-spacing:0.09em;
              text-transform:uppercase; padding:7px 12px; }
@@ -784,6 +784,15 @@ function card(r) {
     '<div class="confirm"></div>' +
     '<div class="actions"></div>';
 
+  // Resolved before anything is appended, and scoped to this card's own direct
+  // child. It used to be a bare el.querySelector('.actions') AFTER the confirm
+  // panel was built, and the confirm panel's button row also carried class
+  // "actions" — so the first match in document order was the row inside the
+  // hidden panel, and Diagnose, Re-diagnose, Ship packet and Open report were
+  // all appended into a container styled display:none. The buttons existed and
+  // were unreachable unless you ticked the strike box.
+  const acts = el.querySelector(':scope > .actions');
+
   // The strike checkbox and its two buttons. Nothing happens on the check
   // itself — it only reveals the choice, and Cancel puts the card back exactly
   // as it was. The removal needs a second, deliberate click.
@@ -796,8 +805,10 @@ function card(r) {
     ' The next eligible row takes the slot. This does not close the company.';
   confirm.appendChild(note);
 
+  // Its own class, not "actions". Two elements sharing a class where one sits
+  // inside a hidden panel is what broke this the first time.
   const confirmActs = document.createElement('div');
-  confirmActs.className = 'actions';
+  confirmActs.className = 'confirm-actions';
 
   const del = document.createElement('button');
   del.className = 'act danger';
@@ -814,8 +825,6 @@ function card(r) {
 
   confirm.appendChild(confirmActs);
   box.onchange = () => el.classList.toggle('striking', box.checked);
-
-  const acts = el.querySelector('.actions');
 
   const diag = document.createElement('button');
   diag.className = 'act' + (d ? '' : ' go');
