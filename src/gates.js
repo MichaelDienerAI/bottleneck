@@ -306,7 +306,15 @@ function locationFlags(loc, cfg, now) {
   const until = asDate(cfg.location?.preference?.stay_until);
   if (until && now < until) {
     flags.push(
-      `relocation_cost:prefers ${cfg.location.base} until ${until}, price this in the diagnosis`
+      // toISOString, not a local format, and this is the one place in the repo
+      // where that is the correct choice. `until` is UTC midnight by
+      // construction — js-yaml parses an unquoted 2027-01-01 as a UTC timestamp,
+      // and asDate() appends T00:00:00Z to a string — so formatting it back as
+      // UTC round-trips the configured date exactly. The defect this replaced
+      // was interpolating the Date itself, which rendered
+      // "Thu Dec 31 2026 17:00:00 GMT-0700 (Mountain Standard Time)" into the
+      // flag and from there into data/queue.json and data/struck.json.
+      `relocation_cost:prefers ${cfg.location.base} until ${until.toISOString().slice(0, 10)}, price this in the diagnosis`
     );
   }
   return flags;

@@ -375,6 +375,23 @@ t('the five blocking classes block', () => {
   }
 });
 
+t('the relocation flag carries a plain date, not a stringified Date', () => {
+  // D4. The flag interpolated the Date object itself, so every affected row in
+  // data/queue.json read "until Thu Dec 31 2026 17:00:00 GMT-0700 (Mountain
+  // Standard Time)". Behaviourally harmless — the flag still blocked — but it
+  // reached two files on disk, and the test above never caught it because it
+  // asserts on a hand-written literal rather than on real output. This one
+  // reads what gate0 actually produced.
+  const r = gate0(at('London, UK'), relocCfg, new Date('2026-08-16T12:00:00Z'));
+  const flag = r.flags.find((f) => f.startsWith('relocation_cost:'));
+  assert.ok(flag, `expected a relocation_cost flag, got ${JSON.stringify(r.flags)}`);
+  assert.ok(flag.includes('until 2027-01-01,'), flag);
+  assert.ok(!/GMT|\(.*Time\)|[A-Z][a-z]{2} [A-Z][a-z]{2} \d{2}/.test(flag), `a Date leaked into the flag: ${flag}`);
+
+  // The same string still blocks. The fix is cosmetic and must stay cosmetic.
+  assert.equal(isBlocked([flag]), true);
+});
+
 t('informational flags do not block on their own', () => {
   for (const f of ['location_tier:tier_1 london', 'generalist_trap:ai developer', 'bureaucracy_signal:requisition']) {
     assert.equal(isBlocked([f]), false, f);

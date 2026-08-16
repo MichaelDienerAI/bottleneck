@@ -40,7 +40,7 @@ src/
   renderBrief.js              diagnosis or packet to one self-contained HTML page
   queue.js                    strike a buffer row, pick its replacement
   liveness.js                 delisting and posting-url checks
-  gates.test.js               96 assertions, no network
+  gates.test.js               97 assertions, no network
   casefile.test.js            34 assertions, temp dirs only, never touches data/cases
   queue.test.js               19 assertions, pure functions only
 data/                         generated, gitignored
@@ -384,7 +384,7 @@ The loop never lets the producing agent certify its own completion. SHIP is a ch
 
 ## 9. Testing
 
-`npm test` runs six suites in order, 208 assertions, no network and no model in any of them.
+`npm test` runs six suites in order, 209 assertions, no network and no model in any of them.
 
 | Suite | Assertions | Covers |
 |---|---|---|
