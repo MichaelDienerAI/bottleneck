@@ -169,6 +169,30 @@ t('a full drum skips the scan entirely', () => {
   assert.ok(!log.includes('stub claude invoked'), `half two ran with no slots\n--- log ---\n${log}`);
 });
 
+t('the scheduled run writes no case file', () => {
+  // Case files are the system's memory across weeks, and they are written only
+  // by src/casefile.js --record, from a diagnosis the auditor already ruled on.
+  // Half two's tool set includes Write, so the bound in .claude/agents/brief.md
+  // is the part that stops it, and nothing in the script may quietly add a
+  // second write path. A claim nobody read, filed into memory at 7am, is
+  // inherited as settled by every later run — which is the one failure this
+  // whole system is built around.
+  const { repo } = makeFixture();
+  const log = run(repo, { CLAUDE_BIN: stubClaude(repo) });
+
+  halfOneRan(log);
+  assert.ok(
+    !fs.existsSync(path.join(repo, 'data/cases')),
+    'the unattended run created data/cases — memory was written with nobody reading'
+  );
+
+  const script = fs.readFileSync(path.join(REPO, 'bin/run.sh'), 'utf8');
+  assert.ok(
+    !/casefile/.test(script),
+    'bin/run.sh names casefile. The recorder belongs to the attended path only.'
+  );
+});
+
 // ---------------------------------------------------------------------------
 // Edge cases
 // ---------------------------------------------------------------------------

@@ -40,6 +40,7 @@ src/
   renderBrief.js              diagnosis or packet to one self-contained HTML page
   liveness.js                 delisting and posting-url checks
   gates.test.js               81 assertions, no network
+  casefile.test.js            32 assertions, temp dirs only, never touches data/cases
 data/                         generated, gitignored
 packets/                      generated, gitignored
 ```
@@ -171,20 +172,44 @@ Interface:
 
 ```js
 slugify(company) → string
-load(company) → file | null
-save(file) → file
+load(company, root?) → file | null
+save(file, root?) → file
 create(company, archetype) → file
-recordVisit(file, visit) → file        // appends, updates status, checks progress
-park(file, days, trigger) → file
-shouldSkip(company, when?) → { skip, reason? , priors? }
-summary() → [{ company, status, visits, dead_hypotheses, revisit_after }]
+recordVisit(file, visit, root?) → file  // upserts by artifact digest, updates status, checks progress
+park(file, days, trigger, root?) → file
+shouldSkip(company, when?, root?) → { skip, reason? , priors? }
+summary(root?) → [{ company, status, visits, dead_hypotheses, revisit_after }]
+
+evidenceKeys(doc) → string[]            // normalized URLs, diagnosis rows plus auditor rows
+effectiveVerdict(doc, stage?) → string
+visitFromDiagnosis(doc, opts?) → visit  // pure. every field traces to the artifact
+resolveDiagnosis(target, root?) → path  // company name or path. ambiguity throws
+recordFromDiagnosis(target, opts?) → result
 ```
 
-`status` moves through NEW, PARKED, REJECTED, SHIPPED, DEAD. The transition table lives in `statusFor`, which maps a diagnosis verdict to a case status.
+`status` moves through NEW, CLEARED, PARKED, REJECTED, AUDIT_REJECT, SHIPPED, DEAD. The transition table lives in `statusFor`, which maps an effective verdict to a case status. Only SHIPPED and DEAD close a company to future scans.
+
+**The write path is deterministic, and that is the point.** `recordFromDiagnosis` derives every field from the diagnosis YAML on disk. No agent hand-writes a case file, because memory written by a model is a claim nobody checked, filed where a later run inherits it as settled. Three properties follow:
+
+- **It refuses an artifact with no `audit:` block.** The unattended gatherer never produces one, so it can never write here even though its tool set includes `Write`. That is a structural bound rather than a line in a prompt.
+- **An audit REJECT outranks the diagnosis verdict.** A diagnosis that reached SHIP and then failed the audit did not ship, so it files as `AUDIT_REJECT`: no dead hypothesis, no cooling date, nothing closed. The artifact failed on coverage, which says nothing about whether the hypothesis was right. Gray Swan is that case.
+- **It is idempotent by artifact digest.** `/diagnose` and `/ship` both record, and the server's post-run hook records again for the dashboard path where the model has no Bash. An unconditional append would file the same evidence keys twice, `noProgress` would fire, and the company would close as DEAD on one reading counted twice. A materially rewritten artifact hashes differently and does append, which is the real second visit the no-progress rule exists to judge.
+
+`SHIP` records as `CLEARED` at diagnosis time and as `SHIP` only under `--stage ship`. A `/ship` run that fails must leave the row workable, and SHIPPED means "already in the ledger," which is not true until the packet exists.
 
 **No-progress detection.** `noProgress` compares the last two visits. If the second surfaced no `evidence_keys` the first did not already hold, the file goes DEAD. Two passes over the same public record will not produce a third answer, and continuing is the loop equivalent of rephrasing a paragraph and calling it revision.
 
 **Where it plugs in.** `scan.js` calls `shouldSkip` on every gated row before promotion. Skipped rows go to `data/skipped-cases.json` with the reason, so a closed case never silently reappears in the queue.
+
+The write side runs from three places, all attended:
+
+| Caller | Command | Stage |
+|---|---|---|
+| `/diagnose` step 3 | `node src/casefile.js --record <company> --stage diagnose` | after the audit |
+| `/ship` step 6 | `node src/casefile.js --record <company> --stage ship` | after the ledger row |
+| `server.js` post-run hook | the same commands, spawned when the job exits 0 | both |
+
+The server hook exists because `argsFor()` grants the dashboard's model `Task, Read, Write, Glob, Grep, WebFetch, WebSearch` and no `Bash`, so a model running from the web page cannot execute the node command its own slash command names. `bin/run.sh` never calls the recorder, and `test/automation.test.js` asserts both that the scheduled run leaves no `data/cases/` behind and that the script never names the module.
 
 **Priors.** When `shouldSkip` returns false for a company with history, it returns `priors` containing dead hypotheses and prior queries. The diagnostician reads these before forming a hypothesis, which prevents it from re-arguing a settled question with the drum's own capacity.
 
@@ -301,7 +326,7 @@ The loop never lets the producing agent certify its own completion. SHIP is a ch
 
 ## 9. Testing
 
-`npm test` runs four suites in order, 139 assertions, no network and no model in any of them.
+`npm test` runs five suites in order, 172 assertions, no network and no model in any of them.
 
 | Suite | Assertions | Covers |
 |---|---|---|

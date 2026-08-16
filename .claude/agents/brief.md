@@ -23,7 +23,7 @@ These are prohibitions, not preferences. Each one is a thing you are capable of 
 - **Never form a hypothesis.** Do not write the Weakest Link sentence. Do not arrange your observables so they lead to one. If you find yourself ordering findings by how well they support a story, stop and re-sort by source.
 - **Never write a packet**, an outreach message, a resume delta, or any prose addressed to anyone at the company.
 - **Never touch `src/ledger.js`** or the ledger data it writes. You consume no slot and you record no spend. The ledger measures whether the system works, and a gatherer that writes to it corrupts the only honest table in the repo.
-- **Never create or modify a case file** under `data/cases/`. Case files carry dead hypotheses and struck claims across weeks. Writing one unattended would put a claim nobody audited into the system's memory, where a later run would inherit it as settled.
+- **Never create or modify a case file** under `data/cases/`. Case files carry dead hypotheses and struck claims across weeks. Writing one unattended would put a claim nobody audited into the system's memory, where a later run would inherit it as settled. Case files are written by `src/casefile.js --record`, which derives every field from a diagnosis the auditor has already ruled on and refuses any artifact with no `audit:` block. You never produce one, so there is nothing here for you to record. Do not attempt it by hand either — your tool set includes Write, and this prohibition is the part that stops you.
 - Do not write anywhere but `data/briefs/`. Not `src/`, not `profile/`, not `data/queue.json`, not `data/diagnoses/`.
 - Never send anything. Never name or guess a person, an email address, or a title you cannot cite.
 

@@ -288,21 +288,49 @@ function startJob(action, company) {
   child.stderr.on('data', (b) => push(job, 'stderr', b.toString()));
   child.on('error', (err) => push(job, 'stderr', `${CLAUDE_BIN}: ${err.message}`));
   child.on('close', (code) => {
-    // Render the report so the page has something to show. /ship already calls
-    // the renderer itself; /diagnose does not, by design, because rendering is
-    // not part of diagnosing.
-    if (code === 0 && action === 'diagnose') {
-      push(job, 'meta', `$ node src/renderBrief.js ${company}`);
-      const r = spawn(process.execPath, ['src/renderBrief.js', company], { cwd: ROOT });
-      r.stdout.on('data', (b) => push(job, 'stdout', b.toString()));
-      r.stderr.on('data', (b) => push(job, 'stderr', b.toString()));
-      r.on('close', () => finish(job, code));
-      return;
-    }
-    finish(job, code);
+    if (code !== 0) return finish(job, code);
+
+    // Two deterministic steps run after the model is done.
+    //
+    // The case file is the system's memory across weeks, and it is written here
+    // rather than by the agent because this path has no Bash: argsFor() grants
+    // Task, Read, Write, Glob, Grep and the two web tools, so a model running
+    // from the dashboard cannot execute the node command the slash command
+    // names. The recorder derives every field from the audited artifact on
+    // disk, and it refuses an artifact with no audit block, so what reaches
+    // memory is only what the auditor already ruled on. It is idempotent by
+    // artifact digest, which is why running it from both paths is safe.
+    //
+    // Then render, so the page has something to show. /ship already calls the
+    // renderer itself; /diagnose does not, by design, because rendering is not
+    // part of diagnosing.
+    const steps = [['src/casefile.js', '--record', company, '--stage', action]];
+    if (action === 'diagnose') steps.push(['src/renderBrief.js', company]);
+    runSteps(job, steps, () => finish(job, code));
   });
 
   return job;
+}
+
+// Sequential node steps, logged into the same job. A failing step is recorded
+// and does not change the job's exit code: the model's run either worked or it
+// did not, and a bookkeeping failure afterward must not report the diagnosis as
+// failed. The log carries the stderr either way.
+function runSteps(job, steps, done) {
+  const [next, ...rest] = steps;
+  if (!next) return done();
+  push(job, 'meta', `$ node ${next.join(' ')}`);
+  let step;
+  try {
+    step = spawn(process.execPath, next, { cwd: ROOT, env: process.env });
+  } catch (err) {
+    push(job, 'stderr', `${next[0]}: ${err.message}`);
+    return runSteps(job, rest, done);
+  }
+  step.stdout.on('data', (b) => push(job, 'stdout', b.toString()));
+  step.stderr.on('data', (b) => push(job, 'stderr', b.toString()));
+  step.on('error', (err) => push(job, 'stderr', `${next[0]}: ${err.message}`));
+  step.on('close', () => runSteps(job, rest, done));
 }
 
 function finish(job, code) {
