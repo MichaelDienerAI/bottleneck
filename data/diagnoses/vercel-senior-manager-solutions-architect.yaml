@@ -1,0 +1,602 @@
+company: Vercel
+role: Senior Manager, Solutions Architect
+url: https://job-boards.greenhouse.io/vercel/jobs/5995789004
+archetype: infrastructure
+archetype_match_confidence: high
+# Vercel hosts and sells the deploy platform under Next.js. That is what the
+# infrastructure archetype names. No forced fit.
+
+hypothesis_source: data/queue.json row greenhouse:Vercel:5995789004, posted '2026-08-10'
+time_started: '2026-08-16T00:00:00Z'
+
+gate0_check:
+  flags_on_row: []
+  blocking_flags_array_read_at: src/gates.js lines 223-229, read on '2026-08-16'
+  blocking_prefixes_confirmed:
+    - 'relocation_cost:'
+    - 'country_only:'
+    - 'remote_unverified:'
+    - 'comp:unknown'
+    - 'posted:unknown'
+  result: >-
+    No blocking flag fires in code. The row carries an empty flags array. The
+    board published a posted date of '2026-08-10', so posted:unknown does not
+    apply and the row is 6 days old against a 90-day limit. The row carries a
+    published band, so comp:unknown does not apply.
+
+  sydney_finding: >-
+    The location string is "Remote - Australia". isRemote() matches on the word
+    "remote", so locationFlags() checks only for an office signal inside that
+    same string. There is none. It returns nothing. But the posting body says
+    "This position will be based in Sydney, Australia." Gate 0 never reads the
+    description for location. That is deliberate: locationFlags() takes
+    job.location as its only location input, visible in the signature at
+    src/gates.js:279 and in the remote branch at src/gates.js:286-291, and the
+    comment block at src/gates.js:14-35 records that the gate accepts silent
+    misses on purpose rather than widening its haystack. So remote_unverified
+    did not fire on a role that names an office city.
+  sydney_price: >-
+    Here is my judgment, and I am stating it as judgment, not as a Gate 0 flag
+    that does not exist. profile/gates.yaml lists Sydney in tier_3 and sets
+    location.preference.stay_until to 2027-01-01, with Phoenix, AZ as the base.
+    Today is 2026-08-16. So this role asks Michael to move to Sydney about four
+    months before the date he said he would be ready to move anywhere. Had the
+    location string read "Sydney, Australia", locationFlags() would have
+    returned both location_tier:tier_3 Sydney and relocation_cost, and
+    relocation_cost is a blocking prefix. The honest reading is that this row
+    should carry a relocation cost and does not.
+  sydney_effect_on_verdict: >-
+    It does not change the verdict here, because the verdict is already PARK on
+    the proof match. It would have mattered if this were a SHIP. Recorded so the
+    next reader does not mistake a clean flags array for a clean location.
+
+  comp_finding: >-
+    The queue row records comp min 280000, max 350000, currency USD. The posting
+    text says "$280,000 - $350,000 AUD". The currency label in the queue is
+    wrong. extractCompFromText() read the numbers and stamped USD on them.
+  comp_price: >-
+    The band is Australian dollars, and it is on-target earnings, not base. I
+    did not look up a dated exchange rate, so I will not quote a converted
+    figure. The arithmetic that matters needs no rate: the $130,000 USD floor in
+    profile/gates.yaml is 46% of 280,000. The band therefore clears the floor at
+    any AUD/USD rate above about 0.47, and the rate has not been near that in
+    decades. So the floor holds. What is not settled is how far above the floor
+    it sits, and no dated record in this repository fixes the currency label.
+
+dated: '2026-08-16'
+
+constraint_hypothesis:
+  weakest_link: >-
+    Vercel produces no more verified instant-navigation routes than its slowest
+    part, the hand-written instant() end-to-end test, allows.
+  binding_part: >-
+    The hand-written instant() test from @next/playwright. Vercel's own
+    validator checks whether a route has a static shell. It cannot check whether
+    the right content is inside that shell. Only a person writing an instant()
+    test can check that, one route at a time, and once for a page load and again
+    for a click-through.
+  output_capped: >-
+    The number of customer routes that are proven instant and stay proven. That
+    number is what a Solutions Architect signs off at the end of an enterprise
+    migration to Next.js 16 Cache Components.
+  confidence: medium
+  narrowing_note: >-
+    Vercel is large and has many public surfaces. I picked one before running
+    the formula: Cache Components and instant navigation on the App Router. I
+    did not diagnose Vercel as a whole. The Next.js core review queue is a
+    separate and probably larger backlog, and I left it alone.
+
+acquittal: EVIDENCE_SUFFICIENT
+
+evidence:
+  - claim: >-
+      The npm registry reports 116,356 weekly downloads of @next/playwright for
+      the week 2026-08-09 to 2026-08-15. That package holds the instant()
+      helper. It is the only tool Vercel ships that can prove a route renders
+      the right content at first paint.
+    inspectable_at: https://api.npmjs.org/downloads/point/last-week/@next/playwright
+    verify_seconds: 4
+    source_class: backstage
+    strength: 5
+
+  - claim: >-
+      The npm registry reports 45,881,963 weekly downloads of next for the same
+      week, 2026-08-09 to 2026-08-15. So the instant() helper is installed once
+      for every 394 installs of Next.js itself. That is 0.25%.
+    inspectable_at: https://api.npmjs.org/downloads/point/last-week/next
+    verify_seconds: 4
+    source_class: backstage
+    strength: 5
+
+  - claim: >-
+      The npm registry reports 37,489,737 weekly downloads of @playwright/test
+      for the same week. Playwright is installed at nearly the same scale as
+      Next.js. So the gap is not that teams skip end-to-end testing. Teams run
+      Playwright. They do not run Vercel's instant() helper on top of it.
+    inspectable_at: https://api.npmjs.org/downloads/point/last-week/@playwright/test
+    verify_seconds: 5
+    source_class: backstage
+    strength: 5
+
+  - claim: >-
+      A search of the vercel/next.js tracker for open issues mentioning
+      cacheComponents returns 12. Ten of them were opened between 2026-08-04 and
+      2026-08-15. The newest, #97424, is "Memory retained per render grows with
+      nested use cache depth under cacheComponents", opened 2026-08-15. Bug
+      reports on this feature are arriving now, not a year ago. The feature is
+      under live load.
+    inspectable_at: https://github.com/vercel/next.js/issues?q=is%3Aissue+is%3Aopen+cacheComponents
+    verify_seconds: 8
+    source_class: backstage
+    strength: 4
+
+  - claim: >-
+      Vercel ships an agent skill for this migration inside the Next.js
+      repository. The directory skills/next-cache-components-adoption exists on
+      the canary branch and holds SKILL.md plus a references folder. So Vercel
+      already automated the refactor half. That is what killed my first
+      hypothesis.
+    inspectable_at: https://github.com/vercel/next.js/tree/canary/skills/next-cache-components-adoption
+    verify_seconds: 7
+    source_class: backstage
+    strength: 4
+
+  - claim: >-
+      Vercel's own instant navigation guide admits the limit of its automated
+      check, in writing: "the structural checks can only tell you that a shell
+      exists. They can't tell you whether the right content is in it." The next
+      sentence hands the job to end-to-end tests. This is a specificity leak. A
+      docs page sells a feature. It does not usually volunteer the exact thing
+      its own validator cannot do.
+    inspectable_at: https://nextjs.org/docs/app/guides/instant-navigation#prevent-regressions-with-e2e-tests
+    verify_seconds: 9
+    source_class: frontstage
+    strength: 3
+    specificity_leak: true
+
+  - claim: >-
+      The posting says the manager will "Provide hands-on support for key
+      accounts as needed (presentations, architecture reviews, migration
+      plans)." This is a specificity leak. A careers page for a leadership role
+      sells leadership. It does not usually admit that the manager still writes
+      migration plans by hand for named accounts. That parenthetical exists
+      because someone is doing it right now.
+    inspectable_at: https://job-boards.greenhouse.io/vercel/jobs/5995789004
+    verify_seconds: 8
+    source_class: frontstage
+    strength: 3
+    specificity_leak: true
+
+disconfirming:
+  query_issued: >-
+    Two kill queries, both issued after the hypothesis was written. My first
+    hypothesis was that hand refactoring caps migrations. Kill query one: does
+    Vercel ship a tool that automates a Cache Components migration, so no human
+    has to refactor route by route? I read the codemod reference and the
+    migrating-to-cache-components guide. My rewritten hypothesis was that hand
+    verification caps migrations. Kill query two: does Vercel ship a build-time
+    or CI gate that fails when a route is not instant, so no human has to check
+    it? I read the instant navigation guide and the adoption skill.
+  result: >-
+    Query one killed hypothesis one, and I am recording that rather than hiding
+    it. Vercel ships an agent skill, next-cache-components-adoption, that drives
+    the refactor with a coding agent. The refactor is not the bottleneck. I
+    rewrote the hypothesis around verification. Query two did not kill the
+    rewrite, and it sharpened it. There is a CI path, but it is not a gate the
+    framework runs. It is the instant() helper in @next/playwright, and a person
+    has to write each test. The guide says so twice. It says the structural
+    checks "can't tell you whether the right content is in it", and it tells the
+    reader to "Focus these tests on the user flows that matter most", which is
+    advice you only give when a team cannot cover them all. I then tried to kill
+    the download-ratio reading by checking whether teams simply do not run
+    end-to-end tests. That failed too: @playwright/test pulls 37.5 million
+    weekly downloads against Next.js's 45.9 million. Teams run Playwright. They
+    do not add the instant() helper.
+  survived: true
+
+proof_match:
+  asset: test_harness
+  tier: sovereign
+  acts_on_constraint: false
+  mechanism: >-
+    The shape matches and the machine does not. Michael's test-mra.js turns a
+    judgment a person used to make by eye into written pass or fail rules, one
+    rule per failure class. That is exactly the move Vercel's constraint needs:
+    turn "does this route show the right thing at first paint" into a rule a
+    machine can run. But test-mra.js grades model conversation. It does not
+    drive a browser, it does not assert on a static shell, and it has never been
+    pointed at a Next.js route. Calling it an instant() suite would be the same
+    stretch the Gray Swan audit struck, where a grader was offered against an
+    authoring constraint. I am marking acts_on_constraint false rather than
+    repeating that error.
+  nearest_missing_proof: >-
+    persona_io is deployed and its depends_on list already names Vercel, so
+    Michael is a Vercel customer with a live app. A dated instant() reading of
+    that app would be a sovereign proof aimed straight at this part. He has not
+    taken it. Until he does, it is a next action, not an asset.
+
+decision_maker:
+  name: ''
+  title: >-
+    Field Engineering leadership at Vercel. The posting names the reporting
+    audience directly: "Track and report SA performance to Sales and Field
+    Engineering leadership quarterly." So the hiring chain runs through a Field
+    Engineering leader. No individual holding that title is named on any public
+    Vercel page I opened.
+  reachable_via: >-
+    The Greenhouse form only. No named non-ATS route was found. This alone is a
+    PARK condition.
+  source: https://job-boards.greenhouse.io/vercel/jobs/5995789004
+
+verdict: PARK
+reason: >-
+  Why it is stuck. Vercel is moving its customers onto Cache Components in
+  Next.js 16. The payoff is instant navigation. Vercel automated the boring half
+  of that move: an agent skill does the refactor. It did not automate the check.
+  Vercel's validator can only see that a static shell exists. It cannot see
+  whether the right content is inside the shell, and Vercel says so in its own
+  guide. The only tool that can see it is the instant() helper in
+  @next/playwright, and a person has to write each test by hand, once for a page
+  load and again for a click-through. Almost nobody writes them. In the week of
+  2026-08-09 that package pulled 116,356 downloads against 45,881,963 for
+  Next.js itself. That is one install for every 394. So the bottleneck, meaning
+  the one part whose capacity sits closest to its load and therefore caps
+  everything behind it, is the hand-written verification test. What it caps is
+  countable: the number of customer routes anyone can prove are instant. That is
+  the sign-off at the end of every enterprise migration an APAC Solutions
+  Architect runs.
+
+  How a fix would work, and the wrong guess. The obvious guess is that Vercel
+  needs better migration tooling. That guess is wrong and Vercel's own repository
+  kills it. The tooling exists. There is a codemod, an adoption skill, and an
+  optimizer skill, all public. What is missing is the gate: a repeatable way to
+  turn "this route shows the right thing immediately" into a test that runs
+  without a person deciding what to assert. The adoption skill even proves the
+  point against itself. Its own instructions say "Ambiguous calls are user
+  check-ins, not agent judgment," and it stops at every feature boundary to ask.
+  So the agent hands a decision back to a human once per product surface. On a
+  large enterprise app that is a lot of human decisions.
+
+  What to do with the evidence. Not this role, and not yet. Michael already runs
+  a production app on Vercel, so he can take the measurement himself: install
+  @next/playwright against personaio.app, write instant() tests for its main
+  routes, and publish the dated result. That single act would convert this
+  correct diagnosis into a sovereign proof, meaning a deployed artifact a
+  stranger can inspect without asking him for anything. Right now he does not
+  hold one that acts on this part, so the slot is released.
+
+honest_shortfall: >-
+  Three things I cannot support and will not soften. First, this posting is a
+  people-management role: 8 or more years in Solutions Architecture with 2 or
+  more years leading a team. Nothing in profile/proof-ledger.yaml is a record of
+  leading a technical team or of enterprise pre-sales. Second, I proved that few
+  teams install the instant() helper. I did not prove that this is what caps
+  Vercel's APAC deal flow. That link is inference and I am marking it as
+  inference. Third, npm download counts include continuous integration reruns
+  and registry mirrors. They count installs, not teams. The ratio is
+  directionally sound because both sides are inflated the same way, but it is
+  not a headcount.
+
+revisit_trigger: >-
+  Reopen this when either of two public things happens. One, Michael publishes a
+  dated instant() reading of a real Next.js app on a URL a stranger can open. At
+  that moment he holds a sovereign proof aimed at the exact part named here, and
+  the proof match flips from false to true. Two, Vercel posts a Solutions
+  Architect or Field Engineering role based in the United States or genuinely
+  remote in a US timezone. That removes the Sydney relocation cost and the
+  location question stops mattering. Check the Vercel Greenhouse board monthly.
+  Also worth a look: if weekly downloads of @next/playwright ever pass 1% of
+  next, the constraint named here is relieving itself and this diagnosis is
+  stale.
+
+gaps:
+  - >-
+    No individual is named as the hiring manager. Vercel does not publish a
+    field engineering org chart. The record that would settle it is a recruiter
+    reply naming the Field Engineering leader for APAC, or a Vercel team page
+    listing that role. It matters because the only path in today is a Greenhouse
+    form, and a form is not a named human.
+  - >-
+    I could not open SKILL.md as a raw blob. GitHub returned 403 on the blob
+    URL. I read its content through the rendered page instead, which is why no
+    evidence row quotes it and why the "user check-ins, not agent judgment"
+    sentence appears only in the reason field. A stranger can reach the same
+    text by opening the directory URL in evidence row 5 and clicking SKILL.md.
+    Quoting it from a source a stranger opens in one click would upgrade that
+    row.
+  - >-
+    The sharpest sentence Vercel wrote is hidden inside a collapsed section of
+    the instant navigation guide: "catching these issues by hand is difficult as
+    the number of routes grows." It sits under the expander titled "How
+    validation simulates different navigations." A stranger has to expand it, so
+    verification runs past 20 seconds. I left it out of the evidence rows and am
+    recording it here instead of smoothing it into a row it would fail.
+  - >-
+    I did not verify a dated AUD to USD rate, so the value of the band is stated
+    only as clearing the floor. The record that would settle it is a dated rate
+    quote on the day an offer is discussed. The currency label in
+    data/queue.json still reads USD and nothing in this repository corrects it.
+  - >-
+    deformation_test_bank is the closer match in method to what this constraint
+    needs, because it is a reusable protocol with written coding rules rather
+    than one test file. It cannot be used. proof-ledger.yaml records its
+    inspect_at as TODO_PUBLIC_URL, so no stranger can open it. This is the third
+    diagnosis where that missing URL has cost something.
+  - >-
+    I read the Next.js tracker's headline counts, 2,000 open issues and 2,200
+    open pull requests, and built nothing on them. More open pull requests than
+    open issues is a real signal about core review capacity, but that is a
+    different part of Vercel from the one named here, and P1 says name one.
+
+audit:
+  dated: '2026-08-16'
+  coverage_score: 0.57
+  unanswered_question_numbers: [2, 3, 4, 16, 17, 20, 23, 24, 25, 26, 27, 28]
+  veto_results:
+    q9_link_behind_claim: true
+    q10_verify_under_60s: true
+    q13_source_beyond_posting: true
+    q19_staged_labeled: true
+    q20_agent_assisted_labeled: false
+  auditor_evidence:
+    - claim: >-
+        Vercel ships a second skill that writes the instant() test. The skills
+        folder on the canary branch holds five directories:
+        next-cache-components-adoption, next-cache-components-optimizer,
+        next-dev-loop, next-partial-prefetching-adoption, and a plugin folder.
+        This file cites the adoption directory and never opened the optimizer
+        next to it.
+      inspectable_at: https://github.com/vercel/next.js/tree/canary/skills
+      verify_seconds: 6
+      source_class: backstage
+      strength: 5
+
+    - claim: >-
+        @next/playwright had zero weekly downloads in the week of 2026-01-05.
+        The npm point endpoint returns {"downloads":0}. So the package the file
+        builds its ratio on did not exist in the registry seven months before
+        the reading.
+      inspectable_at: https://api.npmjs.org/downloads/point/2026-01-05:2026-01-11/@next/playwright
+      verify_seconds: 4
+      source_class: backstage
+      strength: 5
+
+    - claim: >-
+        The same package drew 27,033 downloads in the week of 2026-07-06. Five
+        weeks later it drew 116,356. That is more than four times in five weeks.
+        The intermediate readings are 6,272 for the week of 2026-03-09 and
+        23,766 for the week of 2026-06-08, from the same endpoint with the dates
+        changed.
+      inspectable_at: https://api.npmjs.org/downloads/point/2026-07-06:2026-07-12/@next/playwright
+      verify_seconds: 4
+      source_class: backstage
+      strength: 5
+
+    - claim: >-
+        GitHub's search API returns total_count 74 for open vercel/next.js
+        issues mentioning cacheComponents, not 12. Its first page holds #86577
+        from 2025-11-27 and #86664 from 2025-11-30, plus reports from February,
+        March, April, June and July 2026. So these bug reports have been
+        arriving for about nine months.
+      inspectable_at: https://api.github.com/search/issues?q=repo%3Avercel%2Fnext.js+is%3Aissue+is%3Aopen+cacheComponents
+      verify_seconds: 18
+      source_class: backstage
+      strength: 5
+
+    - claim: >-
+        Vercel's AI agents guide states what the optimizer skill does, in a
+        numbered list. Step one: "Writes a failing instant() test for the UI you
+        named." Step two: "Refactors the route until it passes." Step three:
+        "Commits the passing test with the refactoring, so it catches future
+        regressions." The page files it under "Unattended loops," which it
+        defines as work that "stop[s] only for genuine decisions."
+      inspectable_at: https://nextjs.org/docs/app/guides/ai-agents#next-cache-components-optimizer
+      verify_seconds: 12
+      source_class: frontstage
+      strength: 4
+  verdict: REJECT
+  gaps:
+    - >-
+      Citation isolation was met. Five auditor rows, four of them backstage, and
+      the diagnostician cited none of the five URLs. The two that carry the
+      verdict are the skills directory listing and the January download point
+      showing zero.
+    - >-
+      Q20 is the veto that fails. The artifact never says the engineering work
+      is agent-assisted. It presents test-mra.js as a harness Michael wrote and
+      then tells him to "install @next/playwright against personaio.app, write
+      instant() tests for its main routes, and publish the dated result." The
+      proof ledger names this as a standing overstatement with the disposition
+      "State it plainly." The honest_shortfall block lists three items and skips
+      this one. The Deepgram file of 2026-08-14 handled it with a
+      known_gaps_respected block. This file has none.
+    - >-
+      I attacked the Sydney judgment and it held. Sydney sits in tier_3 at
+      profile/gates.yaml line 117. matchHub() would return it on the string
+      "Sydney, Australia". stay_until parses as 2027-01-01 and asDate() handles
+      the Date object js-yaml produces, so now < until is true on 2026-08-16 and
+      locationFlags() pushes relocation_cost after the tier tag. The
+      counterfactual in sydney_price is correct as written.
+    - >-
+      I attacked the comp arithmetic and it held. floor_usd is 130000 in
+      profile/gates.yaml. 130000 divided by 280000 is 0.464, so 46% is right and
+      the band bottom clears the floor above a rate of about 0.47. One sentence
+      in the same field has no source behind it: "the rate has not been near
+      that in decades." No link, no dated quote, so it fails P2. I could not
+      strike it, because comp_price carries no strike prefix. Delete the
+      sentence or cite a dated rate.
+    - >-
+      I attacked proof_match and it held. acts_on_constraint is false and the
+      prose agrees with the boolean everywhere. The mechanism field says
+      test-mra.js "does not drive a browser, it does not assert on a static
+      shell, and it has never been pointed at a Next.js route." The reason field
+      closes with "he does not hold one that acts on this part, so the slot is
+      released." The Gray Swan stretch is not repeated.
+    - >-
+      The next action rests on an unchecked assumption. instant() only runs on a
+      Next.js app with Cache Components turned on. The proof ledger records that
+      persona_io depends on Vercel. Hosting on Vercel is not the same as running
+      Next.js 16. Nothing in this repository names personaio.app's framework or
+      version, so the whole "take the measurement yourself" path may not be open
+      at all. Check package.json on the app before repeating this
+      recommendation.
+    - >-
+      Questions 2 and 3 fail on a missing field, not a missing idea. The
+      artifact names test_harness and gives no URL for it anywhere. The Deepgram
+      diagnosis of 2026-08-14 carried inspect_at inside proof_match. Adding that
+      one line answers two filing-standard questions.
+    - >-
+      revisit_trigger holds one item that is not a trigger. "Michael publishes a
+      dated instant() reading" is a task on his own list, not a public change a
+      stranger observes. The other two items are real triggers: a US-based
+      Vercel Field Engineering posting, and @next/playwright passing 1% of next.
+      On the growth curve above, that second one fires on its own within months.
+    - >-
+      Vendor dependency is named once and thinly. The artifact names Vercel as a
+      dependency of persona_io. The ledger lists seven: Anthropic, ElevenLabs,
+      Deepgram, Simli, Supabase, Railway, and Vercel. Any future packet built on
+      that app has to say so.
+    - >-
+      I could not reproduce the count of 12 in evidence row 4. The HTML search
+      page may render a different number than the API. What I can settle is the
+      dates, and the dates kill the row's conclusion either way.
+    - >-
+      What I could not settle: whether any Vercel customer uses the optimizer
+      skill. The skill's existence kills the word "hand-written". It does not
+      prove adoption. npm publishes no download count for a skills.sh install. A
+      dated Vercel case study naming the skill would settle it.
+
+strikes:
+  claims_tested: 24
+  claims_struck: 6
+  struck:
+    - claim: >-
+        binding_part: "Only a person writing an instant() test can check that,
+        one route at a time." Plus its restatement in weakest_link.
+      reason: >-
+        This fails Promise versus reality. Vercel ships a skill that writes the
+        test. next-cache-components-optimizer sits in the same skills folder as
+        the adoption skill this file cites. Vercel's AI agents guide lists what
+        it does in three steps: "Writes a failing instant() test for the UI you
+        named", then "Refactors the route until it passes", then "Commits the
+        passing test with the refactoring." The page files it under "Unattended
+        loops." So a person does not have to write each test. Dropping the words
+        "hand-written" does not save the part, because the whole capacity
+        argument rests on one person's writing time, one route at a time, and
+        that is the number the skill changes. The weakest_link sentence also
+        fails reading level. "Verified instant-navigation routes" is a four-word
+        noun chain, and the appositive sits between the subject and the verb, so
+        the reader holds the sentence open for seventeen words.
+      rewrite: >-
+        A person still decides what the instant UI should contain, route by
+        route. Vercel's optimizer skill writes the test. It cannot pick the
+        target. The guide says the agent "does need your app-specific intent"
+        and tells the reader to "Tell it what should appear immediately, what
+        can stream in, and what must stay fresh." So the named part is the
+        per-route decision, not the typing. Confidence drops to low, because no
+        public record counts those decisions or shows them backing up.
+    - claim: >-
+        disconfirming.result: "Query two did not kill the rewrite, and it
+        sharpened it." Plus survived: true.
+      reason: >-
+        This fails Prove the claim. Kill query two asked whether Vercel ships
+        something so that no human has to check each route. The answer sits on
+        the page the query covered. The instant navigation guide this file
+        quotes twice ends its AI workflow section with the optimizer skill,
+        which "writes an instant() test that fails before the fix, then works it
+        to green against a production-like build and ships it as a regression
+        guard." The file's own reason paragraph names that skill and then never
+        reads it. So the query came back with a killing answer and the result
+        field recorded survival. Softening this to "no full CI gate exists" does
+        not work. The dispute is not whether a gate exists. It is whether a
+        person writes the test, and the guide answers that.
+      rewrite: >-
+        Query two came back with a partial kill. Vercel ships
+        next-cache-components-optimizer. It writes the instant() test, refactors
+        the route until the test passes, and commits it. What it does not do is
+        decide what should be on screen at click time. Vercel hands that back to
+        the user in writing. So the hypothesis narrows from writing tests to
+        naming the target UI, and survived is false as written.
+    - claim: >-
+        Evidence row 2: "So the instant() helper is installed once for every 394
+        installs of Next.js itself. That is 0.25%."
+      reason: >-
+        This fails Prove the claim. The ratio measures the package's age. In the
+        week of 2026-01-05 @next/playwright drew zero downloads. In the week of
+        2026-03-09 it drew 6,272. In the week of 2026-06-08, 23,766. In the week
+        of 2026-07-06, 27,033. In the week this file reads, 116,356. It more
+        than quadrupled in five weeks. One reading off a curve like that says
+        the package is new, not that a part is capped. Widening the window does
+        not fix it, because the denominator is wrong too. The count for next
+        covers every version back to v9, and Cache Components is a Next.js 16
+        opt-in flag, so most of those 45.9 million installs could never use the
+        helper. The file's own falsifier makes the point. It says the diagnosis
+        goes stale when downloads pass 1% of next, which is about 459,000 a
+        week. At the rate above the package gets there in a few months with
+        nothing about Vercel changing.
+      rewrite: >-
+        In the week of 2026-08-09 npm reports 116,356 weekly downloads of
+        @next/playwright against 45,881,963 for next. Five weeks earlier the
+        helper drew 27,033. In the first week of January it drew none. The
+        package is new and climbing fast, so this ratio measures adoption age
+        and cannot show that verification caps anything. Strength 2.
+    - claim: >-
+        Evidence row 3: "So the gap is not that teams skip end-to-end testing.
+        Teams run Playwright. They do not run Vercel's instant() helper on top
+        of it."
+      reason: >-
+        This fails Prove the claim. The row compares two whole-registry totals
+        that do not share a denominator. @playwright/test is installed by every
+        kind of JavaScript project, not by Next.js apps, and npm publishes no
+        overlap between the two counts. So the numbers cannot say whether a
+        single Next.js team runs Playwright. Calling Playwright popular instead
+        does not save the row. This row exists to reject the alternative
+        explanation that teams skip end-to-end tests, and a number that cannot
+        see the overlap rejects nothing.
+      rewrite: >-
+        npm reports 37,489,737 weekly downloads of @playwright/test across all
+        JavaScript projects. That figure does not break out Next.js apps, so it
+        cannot say whether Next.js teams already run end-to-end tests. The
+        alternative explanation stays open. Strength 1. The record that would
+        settle it is telemetry or a survey counting Playwright use inside
+        Next.js projects.
+    - claim: >-
+        Evidence row 4: "A search of the vercel/next.js tracker for open issues
+        mentioning cacheComponents returns 12. Ten of them were opened between
+        2026-08-04 and 2026-08-15... Bug reports on this feature are arriving
+        now, not a year ago."
+      reason: >-
+        This fails Prove the claim. GitHub's search API on the same query
+        returns total_count 74. Its first page alone holds open cacheComponents
+        issues from 2025-11-27, #86577, and from 2025-11-30, #86664, plus
+        reports filed in February, March, April, June and July 2026. So these
+        reports have been arriving steadily for about nine months, and the row's
+        conclusion is the opposite of the record. Raising the count from 12 to
+        74 does not rescue the row, because the conclusion it carries is that
+        the reports are new, and the dates kill that.
+      rewrite: >-
+        GitHub's search API reports 74 open issues in vercel/next.js that
+        mention cacheComponents. They run from 2025-11-27 to 2026-08-15. The
+        newest is #97424, "Memory retained per render grows with nested use
+        cache depth under cacheComponents." So the feature has carried open bugs
+        for about nine months. That shows sustained use, not a sudden onset.
+        Strength 3, because an open-issue count also reflects triage capacity.
+    - claim: >-
+        output_capped: "The number of customer routes that are proven instant
+        and stay proven." Plus acquittal: EVIDENCE_SUFFICIENT.
+      reason: >-
+        This fails P3, which says never treat a limit you have not reached as a
+        constraint. The field promises something countable and then counts
+        nothing. No record in this file names one customer route waiting on a
+        test, one migration held up, or one sign-off number anywhere. The file
+        admits it in honest_shortfall: "I did not prove that this is what caps
+        Vercel's APAC deal flow." Rewording the field alone does not repair it.
+        The acquittal has to move with it, because P5 says a missing record is a
+        finding and this file can name the record.
+      rewrite: >-
+        Customer routes carrying a committed instant() test. No public count
+        exists. Vercel publishes no enterprise migration timeline and no
+        route-level sign-off record, so the load on this part cannot be measured
+        from outside. Set acquittal to INSUFFICIENT_EVIDENCE and name the
+        missing record: a dated Vercel customer migration report, or a Field
+        Engineering status page, that counts routes signed off per migration.
