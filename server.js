@@ -658,6 +658,9 @@ button.act.go:hover:not(:disabled) { background:var(--accent); color:#fff; }
 #lines .meta { color:var(--muted); }
 iframe { width:100%; height:78vh; border:1px solid var(--rule); background:#fff; }
 .viewer-head { display:flex; justify-content:space-between; align-items:baseline; gap:14px; flex-wrap:wrap; }
+.seg { display:inline-flex; }
+.seg button + button { margin-left:-1.5px; }
+.seg button[aria-pressed="true"] { background:var(--ink); color:#fff; }
 .pkt { font-size:13px; }
 .pkt a { font-family:var(--mono); font-size:11.5px; margin-right:12px; }
 
@@ -736,6 +739,10 @@ button.act.danger:hover:not(:disabled) { background:var(--accent); color:#fff; }
 <h2>Report</h2>
 <div class="viewer-head">
   <p class="muted" id="viewerlabel" style="margin:0 0 10px">Nothing loaded. Open a report from a card above.</p>
+  <div class="seg" id="viewseg" role="group" aria-label="Reading view" hidden>
+    <button class="act" type="button" data-view="plain" aria-pressed="true">Plain English</button>
+    <button class="act" type="button" data-view="audit" aria-pressed="false">Technical Audit</button>
+  </div>
   <p class="pkt" id="pktlinks"></p>
 </div>
 <iframe id="viewer" title="Rendered brief"></iframe>
@@ -854,14 +861,35 @@ function card(r) {
   return el;
 }
 
+// The rendered page owns the toggle; these buttons only deep-link into it, by
+// reloading the iframe with ?view=, which the page reads on load. Kept here so
+// the view can be switched without clicking inside the frame, and so the
+// dashboard's own control reflects which view is showing.
+let viewerRel = null;
+let viewerView = 'plain';
+
 function show(rel, company, packets) {
-  document.getElementById('viewer').src = '/report?f=' + encodeURIComponent(rel);
+  viewerRel = rel;
+  loadViewer();
   document.getElementById('viewerlabel').textContent = company + ' · ' + rel;
+  document.getElementById('viewseg').hidden = false;
   const links = (packets || []).flatMap(p => p.files.map(f =>
     '<a href="/report?f=' + encodeURIComponent(p.dir + '/' + f) + '">' + f + '</a>'));
   document.getElementById('pktlinks').innerHTML = links.length
     ? 'Packet: ' + links.join('') : '';
 }
+
+function loadViewer() {
+  if (!viewerRel) return;
+  document.getElementById('viewer').src =
+    '/report?f=' + encodeURIComponent(viewerRel) + '&view=' + viewerView;
+  document.querySelectorAll('#viewseg button').forEach(b =>
+    b.setAttribute('aria-pressed', String(b.dataset.view === viewerView)));
+}
+
+document.querySelectorAll('#viewseg button').forEach(b => {
+  b.onclick = () => { viewerView = b.dataset.view; loadViewer(); };
+});
 
 async function run(action, company, alreadyToday) {
   if (action === 'diagnose') {

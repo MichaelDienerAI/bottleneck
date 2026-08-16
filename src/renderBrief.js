@@ -486,8 +486,50 @@ footer { margin-top: 60px; padding-top: 14px; border-top: 1px solid var(--rule);
   h1 { font-size: 28px; }
 }
 
+/* ---------------------------------------------------------------- view toggle
+
+   Two readings of one artifact. Plain English leads with the argument; the
+   Technical Audit carries the receipts.
+
+   THIS HIDES, IT NEVER OMITS. Every section is in the DOM in both views, so
+   nothing a reader might want to check is unreachable, the page stays one
+   self-contained file, and Cmd-F still finds a struck claim from either view.
+
+   THREE THINGS ARE NEVER HIDDEN, and they are the ones a reader would be hurt
+   by not seeing: the draft header, the standing disclosures, and Gaps. Hiding
+   Gaps behind a toggle would be smoothing over what could not be verified in
+   the default view, which is the one thing CLAUDE.md's output discipline names
+   outright. The plain view also states how many evidence rows and struck claims
+   exist rather than leaving a reader unaware there are receipts to read. */
+.viewbar { display: flex; align-items: baseline; gap: 16px; flex-wrap: wrap;
+           margin: 26px 0 0; padding-bottom: 16px; border-bottom: 1px solid var(--rule); }
+.seg { display: inline-flex; border: 1.5px solid var(--ink); flex: none; }
+.seg button { font: inherit; font-family: var(--mono); font-size: 10.5px; font-weight: 600;
+              letter-spacing: 0.09em; text-transform: uppercase; padding: 8px 14px;
+              background: transparent; color: var(--ink); border: 0; cursor: pointer; }
+.seg button + button { border-left: 1.5px solid var(--ink); }
+.seg button[aria-pressed="true"] { background: var(--ink); color: #fff; }
+.viewnote { font-size: 12.5px; color: var(--muted); margin: 0; }
+
+body[data-view="plain"] .audit-only { display: none; }
+body[data-view="audit"] .plain-only { display: none; }
+
+/* Plain English leads with the verdict, then the constraint. Done with flex
+   order rather than by moving the markup, so the DOM order — and therefore the
+   printed order and the reading order for anything that ignores CSS — stays the
+   technical one. */
+main { display: flex; flex-direction: column; }
+body[data-view="plain"] .sec-verdict { order: -2; }
+body[data-view="plain"] .sec-constraint { order: -1; }
+
 @page { size: letter; margin: 13mm 14mm 15mm; }
 @media print {
+  /* Paper carries the whole record. A PDF is an artifact someone keeps, and one
+     that silently dropped the evidence table because of a toggle state at print
+     time would be a different document from the one on screen. */
+  .audit-only, .plain-only { display: block !important; }
+  .viewbar { display: none; }
+  main { display: block; }
   html, body { background: #fff; }
   body { font-size: 9.6pt; line-height: 1.42; }
   .wrap { max-width: none; padding: 0; }
@@ -572,6 +614,19 @@ function render(ctx) {
   // does not get it.
   const constraintStruck = ctx.constraintStrikes.length > 0;
 
+  // What the plain view says about the evidence it is not showing. A reader who
+  // does not know receipts exist cannot decide to go read them, and a default
+  // view that quietly implies there is nothing more to check is the failure this
+  // whole repo is arranged against.
+  const receiptLine = [
+    `${ev.length} evidence ${ev.length === 1 ? 'row' : 'rows'}`,
+    strikes?.claims_struck != null ? `${strikes.claims_struck} claims struck` : null,
+    audit?.coverage_score != null ? `coverage ${audit.coverage_score}` : 'not audited',
+  ]
+    .filter(Boolean)
+    .join(' · ')
+    .concat('. Switch to Technical Audit to inspect them.');
+
   const briefProse = brief ? `<section><h2>The brief as drafted</h2><div class="prose">${md(brief)}</div></section>` : '';
   const outreachProse = outreach
     ? `<section><h2>Outreach as drafted</h2><div class="prose">${md(outreach)}</div></section>`
@@ -588,7 +643,7 @@ function render(ctx) {
 <title>DRAFT — ${esc(d.company)} — ${esc(today)}</title>
 <style>${CSS}</style>
 </head>
-<body>
+<body data-view="plain">
 <div class="wrap">
 
 <p class="draft">${esc(DRAFT_HEADER)}</p>
@@ -606,6 +661,15 @@ function render(ctx) {
     ${d.url ? `<span><a href="${esc(d.url)}">Posting</a><span class="printonly"> ${esc(d.url)}</span></span>` : ''}
   </div>
 </header>
+
+<div class="viewbar">
+  <div class="seg" role="group" aria-label="Reading view">
+    <button type="button" data-setview="plain" aria-pressed="true">Plain English</button>
+    <button type="button" data-setview="audit" aria-pressed="false">Technical Audit &amp; Evidence</button>
+  </div>
+  <p class="viewnote plain-only">${esc(receiptLine)}</p>
+  <p class="viewnote audit-only">Every claim with its source, what the auditor struck, and what is still open. Printing includes both views.</p>
+</div>
 
 <div class="grid">
 <aside>
@@ -642,7 +706,7 @@ function render(ctx) {
 
   ${
     deps.deps.length
-      ? `<section>
+      ? `<section class="audit-only">
            <h2>Not ours to control</h2>
            <p class="small mutedtext">The lead proof runs on vendors. A claim about the pipeline that ignores this is a claim about someone else's product.</p>
            <ul class="deps">${deps.deps.map(([v, owner]) => `<li>${esc(v)} <span class="mutedtext">&middot; ${esc(owner)}</span></li>`).join('')}</ul>
@@ -669,7 +733,7 @@ function render(ctx) {
 </aside>
 <main>
 
-  <section>
+  <section class="sec-constraint">
     <h2>The binding constraint${constraintStruck ? ' &middot; struck' : ''}</h2>
     <div class="constraint${constraintStruck ? ' struck' : ''}">
       <p class="binding">${esc(d.constraint_hypothesis?.binding_part || 'No binding part named.')}</p>
@@ -681,7 +745,7 @@ function render(ctx) {
     </div>
   </section>
 
-  <section>
+  <section class="audit-only">
     <h2>Evidence a stranger can inspect</h2>
     <table>
       <thead><tr><th>Claim and source</th><th class="n">Verify</th></tr></thead>
@@ -691,7 +755,7 @@ function render(ctx) {
 
   ${
     audit
-      ? `<section>
+      ? `<section class="audit-only">
            <h2>What the audit did</h2>
            <p class="small">Coverage <strong>${esc(audit.coverage_score)}</strong> against the twenty-eight filing-standard questions, threshold 0.50.${
              audit.unanswered_question_numbers?.length
@@ -755,7 +819,7 @@ function render(ctx) {
                : ''
            }
          </section>`
-      : `<section>
+      : `<section class="audit-only">
            <h2>What the audit did</h2>
            <div class="callout"><p class="cl-h">No audit block in this file</p><p>Nothing here has been attacked yet. Claims below the constraint are the diagnostician's own, unreviewed. Run the auditor before anything is drafted from this page.</p></div>
          </section>`
@@ -763,7 +827,7 @@ function render(ctx) {
 
   ${
     d.disconfirming
-      ? `<section>
+      ? `<section class="audit-only">
            <h2>The attempt to kill it</h2>
            <dl class="kill">
              <dt>Query issued</dt><dd>${esc(d.disconfirming.query_issued)}</dd>
@@ -799,7 +863,7 @@ function render(ctx) {
 
   ${
     d.reason
-      ? `<section><h2>Verdict ${esc(d.verdict || '')}</h2><p>${esc(d.reason)}</p></section>`
+      ? `<section class="sec-verdict"><h2>Verdict ${esc(d.verdict || '')}</h2><p>${esc(d.reason)}</p></section>`
       : ''
   }
 
@@ -832,6 +896,45 @@ function render(ctx) {
   <span>Bottleneck &middot; rendered ${esc(today)}</span>
 </footer>
 </div>
+<script>
+// Vanilla, inline, no dependency, and it degrades to the plain view with the
+// full audit still reachable by scrolling if it never runs: the sections are
+// only hidden by CSS that keys off body[data-view], and the default attribute
+// is written into the markup rather than set here.
+(function () {
+  var body = document.body;
+  var buttons = [].slice.call(document.querySelectorAll('[data-setview]'));
+
+  function apply(view, remember) {
+    if (view !== 'plain' && view !== 'audit') return;
+    body.setAttribute('data-view', view);
+    buttons.forEach(function (b) {
+      b.setAttribute('aria-pressed', String(b.dataset.setview === view));
+    });
+    if (remember) {
+      // Per artifact, not global. Two diagnoses open in two tabs should not
+      // fight over one setting.
+      try { localStorage.setItem('bottleneck:view:' + location.pathname + location.search, view); } catch (e) {}
+    }
+  }
+
+  buttons.forEach(function (b) {
+    b.addEventListener('click', function () { apply(b.dataset.setview, true); });
+  });
+
+  // A ?view= in the URL wins, so the dashboard can deep-link straight into the
+  // audit. Otherwise the last choice for this artifact, otherwise plain.
+  var wanted = new URLSearchParams(location.search).get('view');
+  if (!wanted) {
+    try { wanted = localStorage.getItem('bottleneck:view:' + location.pathname + location.search); } catch (e) {}
+  }
+  if (wanted) apply(wanted, false);
+
+  // Printing takes the whole record regardless of the toggle, which the print
+  // stylesheet already forces. Nothing to do here; noted so nobody adds a
+  // beforeprint handler that "helpfully" narrows it back down.
+})();
+</script>
 </body>
 </html>`;
 }
