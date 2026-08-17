@@ -26,10 +26,11 @@ import path from 'node:path';
 import { spawn } from 'node:child_process';
 import yaml from 'js-yaml';
 import { openSlots, ledgerState, weekStart } from './src/ledger.js';
-import { shouldSkip } from './src/casefile.js';
+import { shouldSkip, load as loadCase, closeDead } from './src/casefile.js';
 import { compositeScore } from './src/gates.js';
 import { strikeRow, strikeRecord, eligibleBackfill, pickBackfill } from './src/queue.js';
 import { inspectArtifact } from './src/validateArtifact.js';
+import { seal, sealPathFor } from './src/integrity.js';
 
 const ROOT = path.resolve(import.meta.dirname);
 const PORT = Number(process.env.PORT || 3000);
@@ -337,6 +338,9 @@ function push(job, stream, text) {
 // The prompt is the slash command, exactly what the terminal runs. Tools are
 // bounded the way bin/run.sh bounds them: Task so the command can reach its
 // subagent, and the file and network reads those subagents declare. No Bash.
+//
+// Still used by /ship, which is one model pass over an artifact that already
+// exists. /diagnose no longer goes through here — see PHASES below.
 function argsFor(action, company) {
   return [
     '-p',
@@ -352,6 +356,162 @@ function argsFor(action, company) {
   ];
 }
 
+// One agent, run as itself. `--agent <name>` runs the whole session as that
+// subagent, the same way bin/run.sh runs the gatherer, so the bounds the
+// definition carries are the bounds the run gets. Tools match what each agent
+// declares and nothing more; neither needs Bash, because the steps between them
+// are run out here by node.
+function agentArgs({ agent, prompt, tools, turns }) {
+  return [
+    '-p',
+    prompt,
+    '--agent',
+    agent,
+    '--allowedTools',
+    tools,
+    '--permission-mode',
+    'acceptEdits',
+    '--max-turns',
+    turns,
+    '--output-format',
+    'text',
+  ];
+}
+
+// THE DASHBOARD'S /diagnose, SPLIT.
+//
+// It used to be one child running `/diagnose <company>`, which meant the
+// diagnostician and the auditor ran inside a single session with no moment
+// between them for anything else to happen. The seal has to be taken in exactly
+// that moment — after the diagnosis is written, before the auditor can touch it —
+// so the dashboard could not seal at all, and every artifact it produced came out
+// unsealed while the terminal path's came out sealed.
+//
+// Four phases now, alternating model and code. The two node phases are the point:
+// they are the interposition the single spawn had nowhere to put.
+//
+//   1. diagnostician   writes data/diagnoses/<slug>.yaml
+//   2. seal (node)     sha256 of everything except audit and strikes -> sidecar
+//   3. auditor         appends audit and strikes, and nothing else
+//   4. verify (node)   recompute, compare, then run the schema gate
+//
+// A phase that fails ends the job. Nothing downstream runs on an artifact that
+// did not clear the phase before it.
+const PHASES = {
+  diagnose: [
+    {
+      kind: 'agent',
+      label: 'diagnostician',
+      agent: 'diagnostician',
+      tools: 'Read,Write,WebFetch,WebSearch',
+      turns: '40',
+      prompt: (company) =>
+        `Diagnose ${company}. Read its row in data/queue.json, form the constraint hypothesis before you search, ` +
+        `issue one query designed to kill it, and write the diagnosis to data/diagnoses/. ` +
+        `Do not audit it and do not append an audit block: a separate pass does that, and it has to be a separate pass.`,
+    },
+    { kind: 'node', label: 'seal', run: sealStep },
+    {
+      kind: 'agent',
+      label: 'auditor',
+      agent: 'auditor',
+      tools: 'Read,Write,WebFetch',
+      turns: '30',
+      prompt: (company, ctx) =>
+        `Audit the diagnosis for ${company} at ${ctx.artifact}. Append the audit block and the strike log. ` +
+        `Copy diagnostician_digest verbatim from ${ctx.seal}; do not compute it yourself. ` +
+        `Change nothing else in the file — the digest in that sidecar was taken before you were called, and ` +
+        `an edit to the diagnostician's half fails the artifact at the recorder and at the renderer.`,
+    },
+    { kind: 'node', label: 'verify', run: verifyStep },
+  ],
+};
+
+// Walks the phase list. Model phases spawn a child and continue on its close;
+// node phases run inline and continue on a true return. Anything else ends the
+// job, because every phase here is a precondition of the one after it.
+function runPhases(job, phases, i) {
+  const phase = phases[i];
+
+  if (!phase) {
+    // Every phase cleared. The recorder and the renderer are the same two steps
+    // the single-spawn path has always run afterward.
+    const steps = [['src/casefile.js', '--record', job.company, '--stage', job.action]];
+    if (job.action === 'diagnose') steps.push(['src/renderBrief.js', job.company]);
+    return runSteps(job, steps, () => finish(job, 0));
+  }
+
+  const n = `${i + 1}/${phases.length}`;
+
+  if (phase.kind === 'node') {
+    push(job, 'meta', `— phase ${n} ${phase.label} (node)`);
+    let ok = false;
+    try {
+      ok = phase.run(job);
+    } catch (err) {
+      push(job, 'stderr', `${phase.label}: ${err.message}`);
+    }
+    if (!ok) {
+      push(job, 'stderr', `phase ${n} ${phase.label} failed. Stopping; nothing downstream runs.`);
+      return finish(job, 1);
+    }
+    return runPhases(job, phases, i + 1);
+  }
+
+  const prompt = phase.prompt(job.company, job.ctx);
+  push(job, 'meta', `— phase ${n} ${phase.label} (${CLAUDE_BIN} --agent ${phase.agent})`);
+
+  let child;
+  try {
+    child = spawn(CLAUDE_BIN, agentArgs({ ...phase, prompt }), { cwd: ROOT, env: process.env });
+  } catch (err) {
+    push(job, 'stderr', `could not start ${CLAUDE_BIN}: ${err.message}`);
+    return finish(job, 127);
+  }
+
+  job.child = child;
+  child.stdout.on('data', (b) => push(job, 'stdout', b.toString()));
+  child.stderr.on('data', (b) => push(job, 'stderr', b.toString()));
+  child.on('error', (err) => push(job, 'stderr', `${CLAUDE_BIN}: ${err.message}`));
+  child.on('close', (code) => {
+    if (code !== 0) {
+      push(job, 'stderr', `phase ${n} ${phase.label} exited ${code}. Stopping.`);
+      return finish(job, code);
+    }
+    runPhases(job, phases, i + 1);
+  });
+}
+
+// Locates the artifact this job just produced and seals it. Runs between the two
+// model phases, which is the only place a seal means anything.
+function sealStep(job) {
+  const row = readQueue().find((j) => j.company === job.company);
+  const file = diagnosisFile(job.company, row?.title);
+  if (!file) {
+    push(job, 'stderr', 'the diagnostician wrote no diagnosis. Nothing to seal, and nothing to audit.');
+    return false;
+  }
+  const rel = path.relative(ROOT, file);
+  try {
+    const r = seal(file);
+    job.ctx = { artifact: rel, seal: path.relative(ROOT, sealPathFor(file)) };
+    push(job, 'stdout', r.unchanged ? `already sealed, unchanged · ${r.digest}` : `sealed ${rel}`);
+    push(job, 'stdout', `  ${r.digest}`);
+    return true;
+  } catch (err) {
+    // The common cause is an artifact that already carries an audit block, which
+    // means the phase split did not hold and the diagnostician audited its own
+    // work. That is exactly what this pipeline exists to prevent, so it stops here.
+    push(job, 'stderr', `could not seal ${rel}: ${err.message}`);
+    return false;
+  }
+}
+
+// Recompute, compare, then run the schema gate. gateArtifact does both halves.
+function verifyStep(job) {
+  return gateArtifact(job);
+}
+
 function startJob(action, company) {
   const job = {
     id: ++jobSeq,
@@ -361,9 +521,15 @@ function startJob(action, company) {
     done: false,
     code: null,
     lines: [],
+    ctx: {},
   };
   current = job;
   broadcast('start', jobView(job));
+
+  if (PHASES[action]) {
+    runPhases(job, PHASES[action], 0);
+    return job;
+  }
 
   push(job, 'meta', `$ ${CLAUDE_BIN} -p "/${action} ${company}"`);
 
@@ -669,6 +835,56 @@ const server = http.createServer((req, res) => {
         backfilled: pick ? { company: pick.company, title: pick.title } : null,
         queue: next.length,
       });
+    });
+    return;
+  }
+
+  // Close a company as DEAD. The other half of the no-progress rule.
+  //
+  // recordVisit raises a flag and stops there, because two visits surfacing the
+  // same keys is circumstantial and closing a company is not reversible by the
+  // thing that closed it. This route is one of the two places a person can act on
+  // that flag, and it fails closed the same way /api/strike does: the case has to
+  // exist, the flag has to be up unless force is passed, and confirm has to be
+  // true so a stray POST cannot close anything.
+  if (req.method === 'POST' && u.pathname === '/api/close') {
+    let raw = '';
+    req.on('data', (c) => {
+      raw += c;
+      if (raw.length > 4096) req.destroy();
+    });
+    req.on('end', () => {
+      let body;
+      try {
+        body = JSON.parse(raw || '{}');
+      } catch {
+        return json(res, 400, { error: 'bad json' });
+      }
+
+      const caseFile = loadCase(body.company);
+      if (!caseFile) return json(res, 400, { error: 'no case file for that company' });
+      if (caseFile.status === 'DEAD') return json(res, 409, { error: 'already closed', closed_at: caseFile.closed_at ?? null });
+
+      if (current && !current.done && current.company === caseFile.company) {
+        return json(res, 409, { error: `/${current.action} ${current.company} is running. Wait for it to finish.` });
+      }
+      if (!caseFile.no_progress_warning && !body.force) {
+        return json(res, 409, {
+          error: 'this company carries no no-progress warning',
+          status: caseFile.status,
+          visits: caseFile.visits.length,
+        });
+      }
+      if (!body.confirm) {
+        return json(res, 428, {
+          error: 'confirm required',
+          closes: caseFile.company,
+          effect: 'every future scan skips this company until the case file is edited by hand',
+        });
+      }
+
+      closeDead(caseFile, { at: localToday(), reason: body.reason ?? null, by: 'dashboard' });
+      return json(res, 200, { closed: caseFile.company, at: caseFile.closed_at, trigger: caseFile.revisit_trigger });
     });
     return;
   }

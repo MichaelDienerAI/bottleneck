@@ -16,9 +16,9 @@ This report consolidates. It does not replace `docs/ARCHITECTURE.md` (why), `doc
 >
 > | Finding in Part 4 | Now |
 > |---|---|
-> | 139 assertions, 4 suites | **291 assertions, 9 suites** — 97 gates, 34 casefile, 19 queue, 32 bluf, 19 ledger, 31 artifact, 41 schema, 8 automation, 10 liveness |
+> | 139 assertions, 4 suites | **300 assertions, 9 suites** — 97 gates, 43 casefile, 19 queue, 32 bluf, 19 ledger, 31 artifact, 41 schema, 8 automation, 10 liveness |
 > | **D1** case files never written | **Fixed.** `src/casefile.js --record` is wired into `/diagnose`, `/ship`, and the server's post-run hook. `data/cases/` holds six files. |
-> | **D2** `casefile.js` has no tests | **Fixed.** `src/casefile.test.js`, 34 assertions, temp directories only. |
+> | **D2** `casefile.js` has no tests | **Fixed.** `src/casefile.test.js`, 43 assertions, temp directories only. |
 > | **D4** raw `Date` in the relocation flag | **Fixed.** Formats as `YYYY-MM-DD`. Existing `data/queue.json` rows carry the old string until the next scan rewrites them. |
 > | **D3** `deformation_test_bank` has no public URL | **Still open.** `profile/proof-ledger.yaml:41` still reads `TODO_PUBLIC_URL`. |
 > | **D5** board count hardcoded | **Still open.** `src/report.js:136` still says "the 27 company job boards". |

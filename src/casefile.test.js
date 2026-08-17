@@ -13,6 +13,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import {
+  closeDead,
   create,
   effectiveVerdict,
   evidenceKeys,
@@ -284,16 +285,57 @@ t('shouldSkip hands the priors forward', () => {
 // Sequential visits and no-progress detection
 // ---------------------------------------------------------------------------
 
-t('two visits with no new evidence close the company', () => {
+t('two visits with no new evidence flag the company and do not close it', () => {
+  // This used to set DEAD, and DEAD is read by shouldSkip as closed forever. An
+  // irreversible decision taken by a calculation on circumstantial evidence: the
+  // same keys twice can mean the record is exhausted, or that the artifact got
+  // filed twice, or that the second look was cut short. It fired wrongly twice in
+  // this repository. The calculation now reports; a person decides.
   const root = makeRoot();
   const f = create('Testco', 'conversational_ai');
   recordVisit(f, { verdict: 'PARK', evidence_keys: ['a', 'b'], artifact_digest: 'd1' }, root);
   assert.equal(load('Testco', root).status, 'PARKED', 'one visit is not two');
+
   recordVisit(f, { verdict: 'PARK', evidence_keys: ['a', 'b'], artifact_digest: 'd2' }, root);
   const back = load('Testco', root);
+  assert.equal(back.status, 'PARKED', 'the verdict-derived status must survive a bookkeeping observation');
+  assert.equal(back.no_progress_warning, true);
+  assert.ok(back.no_progress_since, 'the flag carries the date it was raised');
+
+  const skip = shouldSkip('Testco', '2026-08-15', root);
+  assert.equal(skip.skip, false, 'a flagged company is still workable');
+  assert.match(skip.warning, /no new evidence/);
+});
+
+t('the no-progress flag clears when a later visit surfaces something new', () => {
+  // Otherwise the flag is a permanent mark that outlives the condition, and the
+  // close prompt keeps firing on a company that started producing again.
+  const root = makeRoot();
+  const f = create('Testco', 'conversational_ai');
+  recordVisit(f, { verdict: 'PARK', evidence_keys: ['a'], artifact_digest: 'd1' }, root);
+  recordVisit(f, { verdict: 'PARK', evidence_keys: ['a'], artifact_digest: 'd2' }, root);
+  assert.equal(load('Testco', root).no_progress_warning, true);
+
+  recordVisit(f, { verdict: 'PARK', evidence_keys: ['a', 'new'], artifact_digest: 'd3' }, root);
+  const back = load('Testco', root);
+  assert.equal(back.no_progress_warning, false);
+  assert.equal(back.no_progress_since, null);
+});
+
+t('closeDead is the only path to DEAD, and it records who and when', () => {
+  const root = makeRoot();
+  const f = create('Testco', 'conversational_ai');
+  recordVisit(f, { verdict: 'PARK', evidence_keys: ['a'], artifact_digest: 'd1' }, root);
+  recordVisit(f, { verdict: 'PARK', evidence_keys: ['a'], artifact_digest: 'd2' }, root);
+  assert.notEqual(load('Testco', root).status, 'DEAD', 'nothing automatic may reach DEAD');
+
+  closeDead(load('Testco', root), { at: '2026-08-17', reason: 'record exhausted', by: 'cli' }, root);
+  const back = load('Testco', root);
   assert.equal(back.status, 'DEAD');
-  assert.ok(back.revisit_trigger.includes('public change'));
-  assert.equal(shouldSkip('Testco', '2026-08-15', root).skip, true);
+  assert.equal(back.closed_at, '2026-08-17');
+  assert.equal(back.closed_by, 'cli');
+  assert.equal(back.revisit_trigger, 'record exhausted');
+  assert.equal(shouldSkip('Testco', '2026-08-18', root).skip, true, 'a closed company is closed');
 });
 
 t('a second visit carrying one new key keeps the company open', () => {
@@ -306,9 +348,8 @@ t('a second visit carrying one new key keeps the company open', () => {
 
 t('re-recording the same artifact does not manufacture a second visit', () => {
   // Without the digest upsert this is the worst defect in the module: /diagnose
-  // and /ship both record, the second call files the identical evidence keys as
-  // a fresh visit, no-progress fires, and the company closes as DEAD on one
-  // reading counted twice.
+  // and /ship both record, and the second call files the identical evidence keys
+  // as a fresh visit.
   const root = makeRoot();
   const f = create('Testco', 'conversational_ai');
   recordVisit(f, { verdict: 'PARK', evidence_keys: ['a'], artifact: 'x.yaml', artifact_digest: 'same' }, root);
@@ -316,6 +357,57 @@ t('re-recording the same artifact does not manufacture a second visit', () => {
   const back = load('Testco', root);
   assert.equal(back.visits.length, 1);
   assert.equal(back.status, 'PARKED', 'an idempotent re-record must not close the company');
+  assert.equal(back.no_progress_warning, false, 'one visit recorded twice is not two visits');
+});
+
+t('an identical re-record reports itself as a duplicate', () => {
+  const root = makeRoot();
+  const f = create('Testco', 'conversational_ai');
+  const v = { verdict: 'PARK', evidence_keys: ['a'], artifact: 'x.yaml', artifact_digest: 'same' };
+  assert.equal(recordVisit(f, v, root).duplicate, false, 'the first filing is not a duplicate');
+  const second = recordVisit(f, v, root);
+  assert.equal(second.duplicate, true);
+  assert.equal(second.visits, 1);
+});
+
+t('ten identical re-records leave one visit', () => {
+  // Strict idempotence, not "usually idempotent". The server records on every run
+  // and the slash commands record again, so this path runs more often than any
+  // other in the module.
+  const root = makeRoot();
+  const f = create('Testco', 'conversational_ai');
+  for (let i = 0; i < 10; i++) {
+    recordVisit(f, { verdict: 'PARK', evidence_keys: ['a'], artifact: 'x.yaml', artifact_digest: 'same' }, root);
+  }
+  assert.equal(load('Testco', root).visits.length, 1);
+});
+
+t('the same artifact re-recorded on the same day is one visit, even after an edit', () => {
+  // The Synthesia case, 2026-08-17. An artifact filed once, re-audited, and
+  // re-recorded the same day appended a second visit with the identical six
+  // evidence keys — and the old no-progress rule closed the company on it.
+  // Refining an artifact and re-filing it is not a second look at the company.
+  const root = makeRoot();
+  const f = create('Testco', 'conversational_ai');
+  recordVisit(f, { verdict: 'PARK', evidence_keys: ['a'], artifact: 'x.yaml', artifact_digest: 'first' }, root);
+  recordVisit(f, { verdict: 'REJECT', evidence_keys: ['a'], artifact: 'x.yaml', artifact_digest: 'second' }, root);
+  const back = load('Testco', root);
+  assert.equal(back.visits.length, 1, 'same artifact, same day, one visit');
+  assert.equal(back.visits[0].artifact_digest, 'second', 'the later reading replaces the earlier one');
+  assert.equal(back.status, 'REJECTED', 'the replacement still drives the status');
+  assert.equal(back.no_progress_warning, false);
+});
+
+t('the same artifact re-recorded on a later day is a real second visit', () => {
+  // The other side of the rule. A genuine second look, days apart, must still be
+  // countable — otherwise the no-progress signal can never fire at all.
+  const root = makeRoot();
+  const f = create('Testco', 'conversational_ai');
+  recordVisit(f, { verdict: 'PARK', evidence_keys: ['a'], artifact: 'x.yaml', artifact_digest: 'first', date: '2026-08-10' }, root);
+  recordVisit(f, { verdict: 'PARK', evidence_keys: ['a'], artifact: 'x.yaml', artifact_digest: 'second', date: '2026-08-17' }, root);
+  const back = load('Testco', root);
+  assert.equal(back.visits.length, 2);
+  assert.equal(back.no_progress_warning, true, 'two real looks with no new keys is what the flag is for');
 });
 
 t('accumulated lists never carry duplicates', () => {
@@ -484,9 +576,16 @@ t('finding the decision-maker updates the file without filing a visit', () => {
   assert.equal(second.decision_maker.name, 'A. Human');
 });
 
-t('a materially rewritten diagnosis is a real second visit', () => {
+t('a same-day rewrite supersedes the visit rather than appending one', () => {
   // The Deepgram case: a committed SHIP file re-diagnosed onto a corrected
-  // predicate. Different content, so it appends rather than replacing.
+  // predicate. This used to append, on the reasoning that different content is a
+  // different reading. It is — but a reading is not a visit, and counting it as
+  // one is what let a same-day re-record close Synthesia on 2026-08-17.
+  //
+  // The rewrite still replaces the row and still drives the status and the dead
+  // hypothesis, which is the substantive half of this test. Only the count
+  // changed. A rewrite recorded on a later day still appends; that is the test
+  // above.
   const root = makeRoot();
   writeDiagnosis(root, diagnosis());
   recordFromDiagnosis('Testco', { root });
@@ -506,8 +605,12 @@ t('a materially rewritten diagnosis is a real second visit', () => {
     })
   );
   const second = recordFromDiagnosis('Testco', { root });
-  assert.equal(second.visits, 2);
-  assert.deepEqual(load('Testco', root).dead_hypotheses, ['Testco produces no more X than its slowest Y allows.']);
+  assert.equal(second.visits, 1, 'same artifact, same day, one visit');
+  assert.equal(second.duplicate, false, 'the content changed, so it is not an idempotent no-op');
+  const back = load('Testco', root);
+  assert.equal(back.status, 'REJECTED', 'the rewrite still drives the status');
+  assert.deepEqual(back.dead_hypotheses, ['Testco produces no more X than its slowest Y allows.']);
+  assert.equal(back.visits[0].verdict, 'REJECT', 'the row carries the later reading');
 });
 
 t('an ambiguous company name is an error, never a guess', () => {
@@ -594,6 +697,58 @@ t('the CLI refuses an unaudited artifact and exits non-zero', () => {
   assert.equal(code, 1);
   assert.ok(/no audit block/.test(stderr), stderr);
   assert.ok(!fs.existsSync(path.join(root, 'data/cases')), 'a refusal must leave no directory behind');
+});
+
+t('--close-dead refuses a company that never stalled', () => {
+  // Closing costs every future scan that would have surfaced the company, and
+  // nothing in the record says this one is exhausted.
+  const root = makeRoot();
+  save(Object.assign(create('Testco', 'conversational_ai'), { status: 'PARKED' }), root);
+  installCli(root);
+
+  let code = 0;
+  let stderr = '';
+  try {
+    execFileSync(process.execPath, ['src/casefile.js', '--close-dead', 'Testco'], { cwd: root, encoding: 'utf8', stdio: 'pipe' });
+  } catch (e) {
+    code = e.status;
+    stderr = e.stderr;
+  }
+  assert.equal(code, 1);
+  assert.match(stderr, /no no-progress warning/);
+  assert.equal(load('Testco', root).status, 'PARKED', 'a refusal must change nothing');
+});
+
+t('--close-dead closes a flagged company and records the act', () => {
+  const root = makeRoot();
+  const f = create('Testco', 'conversational_ai');
+  recordVisit(f, { verdict: 'PARK', evidence_keys: ['a'], artifact_digest: 'd1' }, root);
+  recordVisit(f, { verdict: 'PARK', evidence_keys: ['a'], artifact_digest: 'd2' }, root);
+  assert.equal(load('Testco', root).no_progress_warning, true, 'precondition: the flag is up');
+  installCli(root);
+
+  const out = execFileSync(
+    process.execPath,
+    ['src/casefile.js', '--close-dead', 'Testco', '--reason', 'the public record is exhausted'],
+    { cwd: root, encoding: 'utf8' }
+  );
+  assert.match(out, /Closed Testco as DEAD/);
+  const back = load('Testco', root);
+  assert.equal(back.status, 'DEAD');
+  assert.equal(back.closed_by, 'cli');
+  assert.equal(back.revisit_trigger, 'the public record is exhausted');
+});
+
+t('--close-dead --force closes an unflagged company', () => {
+  const root = makeRoot();
+  save(Object.assign(create('Testco', 'conversational_ai'), { status: 'PARKED' }), root);
+  installCli(root);
+
+  execFileSync(process.execPath, ['src/casefile.js', '--close-dead', 'Testco', '--force', '--reason', 'wrong archetype'], {
+    cwd: root,
+    encoding: 'utf8',
+  });
+  assert.equal(load('Testco', root).status, 'DEAD');
 });
 
 t('importing the module does not fire the CLI', () => {

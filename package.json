@@ -13,6 +13,7 @@
     "fresh": "node src/scan.js --audit-freshness",
     "slots": "node src/ledger.js --slots",
     "init-ledger": "node src/ledger.js --init",
+    "close-dead": "node src/casefile.js --close-dead",
     "seal": "node src/integrity.js --seal",
     "report": "node src/ledger.js --report",
     "board": "node src/report.js",

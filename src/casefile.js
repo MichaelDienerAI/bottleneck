@@ -54,8 +54,14 @@ export function create(company, archetype) {
     archetype,
     first_seen: today(),
     // NEW CLEARED PARKED REJECTED AUDIT_REJECT SHIPPED DEAD.
-    // Only SHIPPED and DEAD close a company; see shouldSkip.
+    // Only SHIPPED and DEAD close a company; see shouldSkip. DEAD is never
+    // reached automatically — see the note above recordVisit.
     status: 'NEW',
+    // Raised by noProgress, cleared the moment a visit surfaces something new.
+    // A flag, not a status, so the verdict-derived status is not overwritten by
+    // a bookkeeping observation.
+    no_progress_warning: false,
+    no_progress_since: null,
     visits: [],
     dead_hypotheses: [],        // constraint claims already killed. never re-run these
     struck_claims: [],          // overstatements the auditor already removed
@@ -74,22 +80,40 @@ const uniquePush = (arr, items) => {
 export function recordVisit(file, visit, root = ROOT) {
   const row = { date: today(), ...visit };
 
-  // Upsert on (artifact, digest) rather than always appending.
+  // Upsert rather than always appending, on two keys.
   //
-  // The recorder fires from two places — the slash command in a terminal and the
-  // server's post-run hook — and /ship re-reads the same diagnosis /diagnose
-  // already recorded. An unconditional append would file a second visit carrying
-  // the identical evidence keys, and noProgress() compares the last two, so the
-  // company would close as DEAD on the strength of one reading recorded twice.
-  // That is a filing artifact, not a finding.
+  // FIRST, (artifact, digest). The recorder fires from two places — the slash
+  // command in a terminal and the server's post-run hook — and /ship re-reads the
+  // same diagnosis /diagnose already recorded. An unconditional append would file
+  // a second visit carrying the identical evidence keys, and noProgress compares
+  // the last two, so the company would be judged on one reading counted twice.
   //
-  // A materially rewritten artifact hashes differently and does append, which is
-  // the real second visit the no-progress rule exists to judge.
-  const i = row.artifact_digest
-    ? file.visits.findIndex(
-        (v) => v.artifact === row.artifact && v.artifact_digest === row.artifact_digest
-      )
+  // SECOND, (artifact, date). The same artifact recorded twice on the same day is
+  // one look at the company, whatever changed in between. On 2026-08-17 a
+  // re-record of an artifact that had been re-audited since its first filing
+  // appended a second visit with the identical six evidence keys, no-progress
+  // fired, and Synthesia closed. The reading had changed; the day had not, and
+  // nobody had looked at the company twice. Refining an artifact and re-filing it
+  // is the same visit, and a date is the unit a visit is counted in.
+  //
+  // A rewritten artifact recorded on a LATER day still appends, which is the real
+  // second visit the no-progress rule exists to judge.
+  // Both keys require a named artifact. Without that guard, two visits that carry
+  // no artifact at all match each other on `undefined === undefined` and the
+  // second silently replaces the first, which would collapse every distinct visit
+  // a caller files without a path.
+  const sameDigest = row.artifact_digest
+    ? file.visits.findIndex((v) => v.artifact === row.artifact && v.artifact_digest === row.artifact_digest)
     : -1;
+  const sameDay =
+    sameDigest >= 0
+      ? sameDigest
+      : row.artifact
+        ? file.visits.findIndex((v) => v.artifact === row.artifact && v.date === row.date)
+        : -1;
+
+  const i = sameDay;
+  const duplicate = sameDigest >= 0;
   if (i >= 0) file.visits[i] = { ...row, date: file.visits[i].date };
   else file.visits.push(row);
 
@@ -106,10 +130,43 @@ export function recordVisit(file, visit, root = ROOT) {
   }
 
   file.status = statusFor(visit.verdict);
+
+  // NO-PROGRESS RAISES A FLAG. IT DOES NOT CLOSE A COMPANY.
+  //
+  // This used to set status = 'DEAD' outright, which shouldSkip reads as closed
+  // forever. That is an irreversible decision taken by a bookkeeping calculation,
+  // on evidence that is only ever circumstantial: two visits surfacing the same
+  // keys can mean the public record is exhausted, and it can equally mean the
+  // same artifact got filed twice, or that the second look was cut short, or that
+  // the evidence moved without the URLs changing. It fired twice in this
+  // repository's short history — once on an added `revisit_trigger:` field, once
+  // on a same-day re-record — and both times it was wrong.
+  //
+  // A calculation may say "this looks exhausted." Only a person may say "stop."
+  // Closing runs through closeDead, from `--close-dead` or the dashboard, and
+  // records who did it and when.
+  //
+  // The flag clears itself the moment a visit surfaces something new, so it
+  // reports the current state rather than accumulating a permanent mark.
   if (noProgress(file)) {
-    file.status = 'DEAD';
-    file.revisit_trigger = 'Two visits produced no new evidence. Reopen only on a public change.';
+    if (!file.no_progress_warning) file.no_progress_since = row.date;
+    file.no_progress_warning = true;
+  } else {
+    file.no_progress_warning = false;
+    file.no_progress_since = null;
   }
+
+  save(file, root);
+  return { file, duplicate, visits: file.visits.length };
+}
+
+// The only path to DEAD. Explicit, attributed, and dated.
+export function closeDead(file, { at = today(), reason = null, by = 'cli' } = {}, root = ROOT) {
+  file.status = 'DEAD';
+  file.closed_at = at;
+  file.closed_by = by;
+  file.revisit_trigger =
+    reason || 'Closed by hand after two visits produced no new evidence. Reopen only on a public change.';
   return save(file, root);
 }
 
@@ -144,12 +201,23 @@ function noProgress(file) {
 export function shouldSkip(company, when = today(), root = ROOT) {
   const file = load(company, root);
   if (!file) return { skip: false };
-  if (file.status === 'DEAD') return { skip: true, reason: 'DEAD: no progress across two visits' };
+  if (file.status === 'DEAD') {
+    return { skip: true, reason: `DEAD: closed by hand${file.closed_at ? ` on ${file.closed_at}` : ''}` };
+  }
   if (file.status === 'SHIPPED') return { skip: true, reason: 'SHIPPED: already in the ledger' };
   if (file.revisit_after && when < file.revisit_after) {
     return { skip: true, reason: `cooling until ${file.revisit_after}: ${file.revisit_trigger || 'no trigger set'}` };
   }
-  return { skip: false, priors: { dead_hypotheses: file.dead_hypotheses, queries_run: file.queries_run } };
+  return {
+    skip: false,
+    // Reported, never acted on. A company whose last two visits found nothing new
+    // is worth knowing about before a slot is spent on it, and that is a different
+    // thing from being closed.
+    warning: file.no_progress_warning
+      ? `no new evidence across the last two visits since ${file.no_progress_since ?? 'an earlier one'}. Consider \`node src/casefile.js --close-dead ${file.company}\`.`
+      : null,
+    priors: { dead_hypotheses: file.dead_hypotheses, queries_run: file.queries_run },
+  };
 }
 
 export function park(file, days, trigger, root = ROOT) {
@@ -318,7 +386,7 @@ export function recordFromDiagnosis(target, { root = ROOT, parkDays = 30, stage 
 
   const visit = visitFromDiagnosis(doc, { artifact: path.relative(root, file), stage });
   visit.artifact_digest = readingDigest(visit);
-  recordVisit(caseFile, visit, root);
+  const { duplicate } = recordVisit(caseFile, visit, root);
 
   // PARK carries a date and a written trigger, or PARK means nothing. The
   // trigger is judgment made during the attended run, so it is lifted from the
@@ -341,6 +409,9 @@ export function recordFromDiagnosis(target, { root = ROOT, parkDays = 30, stage 
     diagnosis_verdict: visit.diagnosis_verdict,
     audit_verdict: visit.audit_verdict,
     visits: caseFile.visits.length,
+    duplicate,
+    no_progress_warning: Boolean(caseFile.no_progress_warning),
+    no_progress_since: caseFile.no_progress_since ?? null,
     evidence_keys: visit.evidence_keys.length,
     struck_claims: visit.struck_claims.length,
     parked,
@@ -363,6 +434,7 @@ export function summary(root = ROOT) {
       visits: c.visits.length,
       dead_hypotheses: c.dead_hypotheses.length,
       revisit_after: c.revisit_after,
+      no_progress_warning: Boolean(c.no_progress_warning),
     }));
 }
 
@@ -405,8 +477,16 @@ if (invokedDirectly) {
           console.log('        date with no reason. Add `revisit_trigger:` to the diagnosis and re-record.');
         }
       }
+      if (r.duplicate) {
+        console.log('  idempotent: the same reading was already on file. No visit was added.');
+      }
+      if (r.no_progress_warning) {
+        console.log(`  NO PROGRESS: the last two visits surfaced no new evidence (since ${r.no_progress_since}).`);
+        console.log('               The company is NOT closed. Nothing here closes one. If the public');
+        console.log(`               record is genuinely exhausted, run:  node src/casefile.js --close-dead ${r.company}`);
+      }
       if (r.status === 'DEAD') {
-        console.log('  DEAD: two visits surfaced no new evidence. Closed until a public change.');
+        console.log('  DEAD: closed by hand. Reopen only on a public change.');
       }
       if (!r.decision_maker?.name) {
         console.log('  decision-maker still unnamed. That is manual work and the packet stops without it.');
@@ -415,12 +495,42 @@ if (invokedDirectly) {
       console.error(`Refusing to record. ${e.message}`);
       process.exit(1);
     }
+  } else if (argv[0] === '--close-dead') {
+    // The human half of the no-progress rule. The calculation raises the flag;
+    // this is the only thing that acts on it.
+    const target = argv[1];
+    if (!target || target.startsWith('--')) {
+      console.error('usage: node src/casefile.js --close-dead <company> [--reason "..."] [--force]');
+      process.exit(2);
+    }
+    const caseFile = load(target);
+    if (!caseFile) {
+      console.error(`No case file for "${target}". Nothing to close.`);
+      process.exit(1);
+    }
+    if (caseFile.status === 'DEAD') {
+      console.log(`${caseFile.company} is already DEAD, closed ${caseFile.closed_at ?? 'at an unrecorded date'}.`);
+    } else if (!caseFile.no_progress_warning && !argv.includes('--force')) {
+      // Closing a company that never stalled is not the workflow this exists for,
+      // and doing it by accident costs every future scan that would have surfaced it.
+      console.error(`${caseFile.company} carries no no-progress warning. Its last visit surfaced new evidence.`);
+      console.error(`  status ${caseFile.status}, ${caseFile.visits.length} visit${caseFile.visits.length === 1 ? '' : 's'} on file.`);
+      console.error('  Closing it anyway needs --force, and --force wants a --reason worth reading later.');
+      process.exit(1);
+    } else {
+      closeDead(caseFile, { reason: flag('--reason'), by: 'cli' });
+      console.log(`Closed ${caseFile.company} as DEAD on ${caseFile.closed_at}.`);
+      console.log(`  ${caseFile.revisit_trigger}`);
+      console.log('  Every future scan now skips this company. Edit data/cases/ by hand to undo it.');
+    }
   } else if (argv[0] === '--show') {
     const rows = summary();
     if (!rows.length) console.log('No case files yet. data/cases/ is empty.');
     for (const r of rows) {
       console.log(
-        `${r.company.padEnd(20)} ${String(r.status).padEnd(13)} visits ${r.visits}  dead hypotheses ${r.dead_hypotheses}  ${r.revisit_after ?? ''}`
+        `${r.company.padEnd(20)} ${String(r.status).padEnd(13)} visits ${r.visits}  dead hypotheses ${r.dead_hypotheses}  ${
+          r.no_progress_warning ? 'NO-PROGRESS  ' : ''
+        }${r.revisit_after ?? ''}`
       );
     }
   } else {

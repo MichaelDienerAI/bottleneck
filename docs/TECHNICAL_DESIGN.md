@@ -45,7 +45,7 @@ src/
   queue.js                    strike a buffer row, pick its replacement
   liveness.js                 delisting and posting-url checks
   gates.test.js               97 assertions, no network
-  casefile.test.js            34 assertions, temp dirs only, never touches data/cases
+  casefile.test.js            43 assertions, temp dirs only, never touches data/cases
   queue.test.js               19 assertions, pure functions only
   bluf.test.js                32 assertions, pure functions only
   ledger.test.js              19 assertions, temp roots, the fail-closed rope
@@ -229,11 +229,15 @@ recordFromDiagnosis(target, opts?) → result
 
 - **It refuses an artifact with no `audit:` block.** The unattended gatherer never produces one, so it can never write here even though its tool set includes `Write`. That is a structural bound rather than a line in a prompt.
 - **An audit REJECT outranks the diagnosis verdict.** A diagnosis that reached SHIP and then failed the audit did not ship, so it files as `AUDIT_REJECT`: no dead hypothesis, no cooling date, nothing closed. The artifact failed on coverage, which says nothing about whether the hypothesis was right. Gray Swan is that case.
-- **It is idempotent by artifact digest.** `/diagnose` and `/ship` both record, and the server's post-run hook records again for the dashboard path where the model has no Bash. An unconditional append would file the same evidence keys twice, `noProgress` would fire, and the company would close as DEAD on one reading counted twice. A materially rewritten artifact hashes differently and does append, which is the real second visit the no-progress rule exists to judge.
+- **It is idempotent on two keys.** `/diagnose` and `/ship` both record, and the server's post-run hook records again. The first key is `(artifact, digest)`: the identical reading re-filed is a strict no-op, and the recorder says `idempotent` rather than pretending it did something. The second is `(artifact, date)`: the same artifact re-recorded on the same day replaces its row instead of appending, because refining an artifact and re-filing it is not a second look at the company. A rewrite recorded on a **later** day still appends, which is the real second visit the no-progress rule exists to judge.
 
 `SHIP` records as `CLEARED` at diagnosis time and as `SHIP` only under `--stage ship`. A `/ship` run that fails must leave the row workable, and SHIPPED means "already in the ledger," which is not true until the packet exists.
 
-**No-progress detection.** `noProgress` compares the last two visits. If the second surfaced no `evidence_keys` the first did not already hold, the file goes DEAD. Two passes over the same public record will not produce a third answer, and continuing is the loop equivalent of rephrasing a paragraph and calling it revision.
+**No-progress detection raises a flag. It does not close a company.** `noProgress` compares the last two visits; if the second surfaced no `evidence_keys` the first did not already hold, it sets `no_progress_warning` and `no_progress_since`. The verdict-derived status is left alone, `shouldSkip` still returns `skip: false`, and the warning travels with it so the next scan can report it.
+
+It used to set `status = 'DEAD'` outright, which closes a company to every future scan. That is an irreversible decision taken by a calculation, on evidence that is only ever circumstantial — the same keys twice can mean the public record is exhausted, and it can equally mean the artifact got filed twice, or the second look was cut short, or the evidence moved without the URLs changing. It fired wrongly twice in this repository's short history: once on an added `revisit_trigger:` field, once on a same-day re-record that closed Synthesia on 2026-08-17.
+
+DEAD is now reached only through `closeDead`, from `node src/casefile.js --close-dead <company>` or the dashboard's `POST /api/close`. Both refuse a company carrying no warning unless forced, both require an explicit confirmation, and both record `closed_at` and `closed_by`. A calculation may say "this looks exhausted." Only a person may say "stop."
 
 **Where it plugs in.** `scan.js` calls `shouldSkip` on every gated row before promotion. Skipped rows go to `data/skipped-cases.json` with the reason, so a closed case never silently reappears in the queue.
 
@@ -391,7 +395,7 @@ The loop never lets the producing agent certify its own completion. SHIP is a ch
 
 ## 9. Testing
 
-`npm test` runs nine suites in order, 291 assertions, no network and no model in any of them.
+`npm test` runs nine suites in order, 300 assertions, no network and no model in any of them.
 
 | Suite | Assertions | Covers |
 |---|---|---|

@@ -42,6 +42,7 @@ Run these in a terminal:
 | Command | What it does |
 |---|---|
 | `npm run slots` | How many packet slots are left this week. Ask this first |
+| `npm run close-dead <company>` | Closes a company as DEAD after a no-progress flag. The only thing that does. Needs `--force` if the flag is not up |
 | `npm run init-ledger` | Creates `data/ledger.json` as an empty ledger. Needed once, on a fresh checkout. Never truncates an existing one |
 | `npm run seal <company>` | Hashes what the diagnostician wrote, before the auditor opens the file. `/diagnose` runs this between the two agents |
 | `npm run report` | Full ledger readout: weekly fitness, narrative samples, defect classes, RAND experiment |
@@ -52,7 +53,7 @@ Run these in a terminal:
 | `npm run brief <company>` | Renders a diagnosis, or a packet directory, to one self-contained HTML page. Add `--pdf` for a PDF via system Chrome. Reports the clearance state it found and gates nothing |
 | `npm run verify` | Checks every board token in `profile/companies.yaml`. Writes `data/token-verification.json` |
 | `npm run bluf` | Prints every diagnosis, its verdict, and the headline the renderer will put at the top of its Plain English view |
-| `npm test` | Nine suites, 291 assertions, no network. Run before you trust anything |
+| `npm test` | Nine suites, 300 assertions, no network. Run before you trust anything |
 | `./bin/run.sh` | Runs the whole scheduled job by hand, exactly as launchd runs it |
 
 ## The pipeline, end to end
@@ -113,7 +114,7 @@ ls -lt data/logs/ | head            # last several runs
 
 **"Is anything broken?"**
 ```bash
-npm test                            # expect 97 + 34 + 19 + 32 + 19 + 31 + 41 + 8 + 10 passing, 291 total
+npm test                            # expect 97 + 43 + 19 + 32 + 19 + 31 + 41 + 8 + 10 passing, 300 total
 ```
 
 **"I want to see today's work."** Open `data/board.html` and `data/briefs/<today>.md` in a browser and an editor.
@@ -317,7 +318,7 @@ Optional: `measurement_minutes`, the protocol run alone, carved **out of** `diag
 
 Without this, a company rejected in March gets re-promoted in May and re-diagnosed with the same wrong hypothesis. That re-diagnosis costs a drum slot, and the drum is the constraint. Amnesia steals directly from the bottleneck.
 
-Each file holds every prior visit, `dead_hypotheses` never to be re-run, `struck_claims` the auditor already removed, `queries_run`, a `revisit_after` date, and a `revisit_trigger` in plain language. Two visits producing no new evidence set the status to DEAD.
+Each file holds every prior visit, `dead_hypotheses` never to be re-run, `struck_claims` the auditor already removed, `queries_run`, a `revisit_after` date, and a `revisit_trigger` in plain language. Two visits producing no new evidence raise a `no_progress_warning` flag and change nothing else. Closing a company is a human act: `node src/casefile.js --close-dead <company>`, or the dashboard, both of which record who did it and when.
 
 ### `.claude/schemas/evidence.json` — what a diagnosis must return
 

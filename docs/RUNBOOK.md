@@ -16,7 +16,7 @@ Download the repository files and unzip them into a folder. Open that folder in 
 cd bottleneck
 node --version        # must be 18 or higher
 npm install
-npm test              # expect 291 passing across 9 suites: 97 gates, 34 casefile, 19 queue, 32 bluf, 19 ledger, 31 artifact, 41 schema, 8 automation, 10 liveness
+npm test              # expect 300 passing across 9 suites: 97 gates, 43 casefile, 19 queue, 32 bluf, 19 ledger, 31 artifact, 41 schema, 8 automation, 10 liveness
 ```
 
 If `npm test` fails, stop and fix that before opening Claude Code. Gate 0 decides everything the bottleneck resource ever sees, the schemas decide what a subagent may hand back, and the automation suite decides what happens at 7am when something has already gone wrong.
@@ -61,7 +61,7 @@ Done as of 2026-08-15. `src/casefile.test.js` holds 34 assertions and the write 
 
 > Show me data/cases/ after my first two diagnoses. For each file, tell me which visit produced which status, whether any hypothesis is recorded as dead, and whether the decision-maker field survived across visits. Then run node src/casefile.js --show.
 
-**Exit condition.** Every status in `data/cases/` matches a verdict you personally read. A company marked DEAD or SHIPPED is closed to future scans, so those two are the ones to check first.
+**Exit condition.** Every status in `data/cases/` matches a verdict you personally read. A company marked DEAD or SHIPPED is closed to future scans, so those two are the ones to check first. Nothing reaches DEAD on its own — a no-progress flag is a prompt to look, not a closure.
 
 ---
 

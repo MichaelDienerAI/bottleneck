@@ -107,7 +107,8 @@ The system stops in named ways. "Keep looking" is not a stopping rule, because a
 | REJECT (diagnosis) | Hypothesis failed the evidence test | Hypothesis recorded as dead, never re-run |
 | INSUFFICIENT_EVIDENCE | Cannot establish a constraint through admissible process | Acquittal, not a claim the company has no constraint |
 | REJECT (audit) | Audit found the packet unfounded | Slot returns to the pool |
-| DEAD | Two visits produced no new evidence | Company closed until a public change |
+| NO_PROGRESS | Two visits produced no new evidence | Flag raised, company stays workable. Reported, never acted on |
+| DEAD | A person closed it, after that flag | Company closed until a public change. Only `--close-dead` or the dashboard sets this |
 | DRUM_FULL | Weekly capacity consumed | Sourcing suspends |
 
 ---
