@@ -16,7 +16,7 @@ This report consolidates. It does not replace `docs/ARCHITECTURE.md` (why), `doc
 >
 > | Finding in Part 4 | Now |
 > |---|---|
-> | 139 assertions, 4 suites | **209 assertions, 6 suites** — 97 gates, 34 casefile, 19 queue, 41 schema, 8 automation, 10 liveness |
+> | 139 assertions, 4 suites | **241 assertions, 7 suites** — 97 gates, 34 casefile, 19 queue, 32 bluf, 41 schema, 8 automation, 10 liveness |
 > | **D1** case files never written | **Fixed.** `src/casefile.js --record` is wired into `/diagnose`, `/ship`, and the server's post-run hook. `data/cases/` holds six files. |
 > | **D2** `casefile.js` has no tests | **Fixed.** `src/casefile.test.js`, 34 assertions, temp directories only. |
 > | **D4** raw `Date` in the relocation flag | **Fixed.** Formats as `YYYY-MM-DD`. Existing `data/queue.json` rows carry the old string until the next scan rewrites them. |
@@ -392,7 +392,8 @@ These are not preferences. They are enforced in code, in tool sets, or in agent 
 | `src/verify.js` | 45 | Board-token checker. Writes `data/token-verification.json`. Run before the first scan and after any edit. |
 | `src/report.js` | 398 | Writes `data/board.html`. Funnel bars drawn to real proportions, kill reasons in plain English, the queue with what must be resolved, a "do this next" line. |
 | `src/walkthrough.js` | 370 | Writes `data/walkthrough.html`. Pick a kind of work, walk the pipeline on your real numbers. Explicitly does not fake agent runs — it hands you the prompt instead. |
-| `src/renderBrief.js` | 994 | Renders a diagnosis or packet to self-contained HTML, optionally PDF. Draft header drawn with borders so it survives printing. Also measures prose against the writing rules: banned vocabulary, corporate filler, Flesch-Kincaid grade. |
+| `src/renderBrief.js` | 1162 | Renders a diagnosis or packet to self-contained HTML, optionally PDF. Draft header drawn with borders so it survives printing. Also measures prose against the writing rules: banned vocabulary, corporate filler, Flesch-Kincaid grade. |
+| `src/bluf.js` | 366 | The one line above the Plain English view. Derives it from the recorded verdict and the gate that failed, never from the file's prose, and stops the render if it breaks a limit or repeats a struck claim. Also the `npm run bluf` table. |
 | `src/utils/schemaValidator.js` | 245 | Hand-rolled JSON Schema subset plus the four cross-cutting rules. Throws at first violation and names the path. |
 | `server.js` | 695 | Local dashboard on `node:http`. Shows queue, drum, and the clearance state of every diagnosis; a click spends a slot. Never sends, never interpolates a name into a shell string, runs one job at a time. |
 

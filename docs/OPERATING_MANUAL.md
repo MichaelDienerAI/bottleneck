@@ -48,7 +48,8 @@ Run these in a terminal:
 | `npm run walk` | Rebuilds `data/walkthrough.html` |
 | `npm run brief <company>` | Renders a diagnosis, or a packet directory, to one self-contained HTML page. Add `--pdf` for a PDF via system Chrome. Reports the clearance state it found and gates nothing |
 | `npm run verify` | Checks every board token in `profile/companies.yaml`. Writes `data/token-verification.json` |
-| `npm test` | Six suites, 209 assertions, no network. Run before you trust anything |
+| `npm run bluf` | Prints every diagnosis, its verdict, and the headline the renderer will put at the top of its Plain English view |
+| `npm test` | Seven suites, 241 assertions, no network. Run before you trust anything |
 | `./bin/run.sh` | Runs the whole scheduled job by hand, exactly as launchd runs it |
 
 ## The pipeline, end to end
@@ -109,7 +110,7 @@ ls -lt data/logs/ | head            # last several runs
 
 **"Is anything broken?"**
 ```bash
-npm test                            # expect 97 + 34 + 19 + 41 + 8 + 10 passing, 209 total
+npm test                            # expect 97 + 34 + 19 + 32 + 41 + 8 + 10 passing, 241 total
 ```
 
 **"I want to see today's work."** Open `data/board.html` and `data/briefs/<today>.md` in a browser and an editor.

@@ -38,11 +38,13 @@ src/
   ledger.js                   drum accounting, tracking, RAND readout
   verify.js                   board token checker
   renderBrief.js              diagnosis or packet to one self-contained HTML page
+  bluf.js                     the one-line headline above the Plain English view
   queue.js                    strike a buffer row, pick its replacement
   liveness.js                 delisting and posting-url checks
   gates.test.js               97 assertions, no network
   casefile.test.js            34 assertions, temp dirs only, never touches data/cases
   queue.test.js               19 assertions, pure functions only
+  bluf.test.js                32 assertions, pure functions only
 data/                         generated, gitignored
 packets/                      generated, gitignored
 ```
@@ -384,12 +386,13 @@ The loop never lets the producing agent certify its own completion. SHIP is a ch
 
 ## 9. Testing
 
-`npm test` runs six suites in order, 209 assertions, no network and no model in any of them.
+`npm test` runs seven suites in order, 241 assertions, no network and no model in any of them.
 
 | Suite | Assertions | Covers |
 |---|---|---|
 | `src/gates.test.js` | 81 | Title family matching, seniority rejection, each disqualifier group, location logic, published and free-text compensation, flag-not-fail behavior on missing data, blocking-versus-informational flags, per-company caps, and weight-based ranking |
 | `test/schema.test.js` | 41 | Both payload schemas and the four rules JSON Schema cannot express: R-BACKSTAGE, R-ACQUITTAL, R-VETO, R-THRESHOLD, R-COVERAGE-CONSISTENT, R-AUDITOR-BACKSTAGE |
+| `src/bluf.test.js` | 32 | The headline above the Plain English view: the 25-word ceiling, the banned-jargon list, passive voice, the reading-grade ceiling, em dashes, and the two that matter most — a headline repeating a struck claim must fail the render, and a missing verdict must render `Verdict not recorded.` rather than infer one from the gates |
 | `test/automation.test.js` | 7 | `bin/run.sh` orchestration against a fixture repo under a temporary `HOME`: a clean run, a full drum, a missing CLI, a missing brief agent, and a corrupted or non-integer ledger. Plus the week boundary: `weekStart` and `openSlots` run in child processes with `TZ` set, at hours that straddle the UTC date line in zones on both sides of it |
 
 Gate 0, the schemas, and the runner are the three components testable without a network or a model. Gate 0 decides everything the bottleneck resource ever sees. The schemas decide what a subagent is allowed to hand back. The runner decides what happens at 7am when something has already gone wrong. Everything else needs a human reading it.

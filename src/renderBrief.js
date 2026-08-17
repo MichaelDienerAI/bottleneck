@@ -38,6 +38,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { execFileSync } from 'node:child_process';
 import yaml from 'js-yaml';
+import { deriveBluf } from './bluf.js';
 
 const ROOT = path.resolve(import.meta.dirname, '..');
 
@@ -181,24 +182,31 @@ function clearance(d) {
     auditVerdict,
     cleared: d.verdict === 'SHIP' && auditVerdict === 'PASS',
     dmMissing,
+    // `key` is a stable identifier for the gate, not a new gate and not a change
+    // to an existing one. src/bluf.js reads it to name which failure decided the
+    // headline, and matching on a label would break the moment one is reworded.
     gates: [
-      { label: 'Diagnosis verdict', ok: d.verdict === 'SHIP', detail: d.verdict || 'absent' },
+      { key: 'verdict', label: 'Diagnosis verdict', ok: d.verdict === 'SHIP', detail: d.verdict || 'absent' },
       {
+        key: 'audit',
         label: 'Audit verdict',
         ok: auditVerdict === 'PASS',
         detail: auditVerdict || 'not audited',
       },
       {
+        key: 'acquittal',
         label: 'Acquittal',
         ok: d.acquittal === 'EVIDENCE_SUFFICIENT',
         detail: d.acquittal || 'field absent from file',
       },
       {
+        key: 'proof',
         label: 'Sovereign proof on the constraint',
         ok: tier === 'sovereign' && d.proof_match?.acts_on_constraint === true,
         detail: tier ? `${tier}${d.proof_match?.acts_on_constraint === true ? ', acts on it' : ', does not'}` : 'absent',
       },
       {
+        key: 'decision_maker',
         label: 'Named decision-maker',
         ok: !dmMissing,
         detail: dmMissing ? 'no name established' : dmName.split('—')[0].trim(),
@@ -511,6 +519,22 @@ footer { margin-top: 60px; padding-top: 14px; border-top: 1px solid var(--rule);
 .seg button[aria-pressed="true"] { background: var(--ink); color: #fff; }
 .viewnote { font-size: 12.5px; color: var(--muted); margin: 0; }
 
+/* ---------------------------------------------------------------- bluf
+
+   The first thing in the Plain English view, above the clearance panel, because
+   a reader who stops after one line should still leave holding the decision.
+   Derived in src/bluf.js from the recorded verdict and the gate that failed. It
+   reports; it never re-decides, and it carries no prose lifted from the file, so
+   a struck claim cannot ride up here. Plain view only: the Technical Audit is
+   unchanged, and print shows both. */
+.bluf { border-left: 4px solid var(--accent); padding: 2px 0 2px 20px; margin: 26px 0 0; }
+.bluf .cl-h { font-family: var(--mono); font-size: 10px; font-weight: 600; letter-spacing: 0.1em;
+              text-transform: uppercase; color: var(--muted); margin: 0 0 7px; }
+.bluf-t { font-size: 23px; line-height: 1.34; letter-spacing: -0.014em; font-weight: 600; margin: 0; }
+.bluf-src { font-size: 12.5px; color: var(--muted); margin: 9px 0 0; }
+/* No verdict on file. The accent is for a decision that exists. */
+.bluf.bluf-fail { border-left-color: var(--ink); }
+
 body[data-view="plain"] .audit-only { display: none; }
 body[data-view="audit"] .plain-only { display: none; }
 
@@ -544,6 +568,9 @@ body[data-view="plain"] .sec-constraint { order: -1; }
   td { padding: 8px 10px 8px 0; }
   .src { font-size: 7.4pt; }
   .draft { margin-bottom: 18px; padding: 7px 11px; font-size: 8pt; }
+  .bluf { margin-top: 18px; }
+  .bluf-t { font-size: 13pt; }
+  .bluf-src { font-size: 8pt; }
   /* One column on paper. The sidebar is a third of the screen layout and much
      shorter than the argument, so on paper the two-column grid leaves a third of
      every page after it blank and squeezes the evidence into 55% of the width.
@@ -567,7 +594,7 @@ body[data-view="plain"] .sec-constraint { order: -1; }
 `;
 
 function render(ctx) {
-  const { d, mode, brief, outreach, resumeDelta, today, cl, deps, ev, unmatched, strikes, audit } = ctx;
+  const { d, mode, brief, outreach, resumeDelta, today, cl, deps, ev, unmatched, strikes, audit, bluf } = ctx;
 
   const auditBadge = audit
     ? `<span class="badge ${audit.verdict === 'PASS' ? 'pass' : 'open'}">Audit ${esc(audit.verdict)}</span>`
@@ -670,6 +697,18 @@ function render(ctx) {
   <p class="viewnote plain-only">${esc(receiptLine)}</p>
   <p class="viewnote audit-only">Every claim with its source, what the auditor struck, and what is still open. Printing includes both views.</p>
 </div>
+
+<section class="bluf plain-only${bluf.missingVerdict ? ' bluf-fail' : ''}" aria-label="Bottom line up front">
+  <p class="cl-h">Bottom line</p>
+  <p class="bluf-t">${esc(bluf.text)}</p>
+  <p class="bluf-src">${
+    bluf.missingVerdict
+      ? 'No verdict on file for this diagnosis. This page will not guess one.'
+      : bluf.decidingGate && bluf.decidingGate !== 'verdict'
+        ? `Restates the recorded verdict and ${esc(bluf.basis)}. It decides nothing.`
+        : 'Restates the recorded verdict. It decides nothing.'
+  }</p>
+</section>
 
 <div class="grid">
 <aside>
@@ -988,6 +1027,18 @@ const cl = clearance(d);
 const st = distributeStrikes(d.evidence || [], d.strikes);
 const today = new Date().toISOString().slice(0, 10);
 
+// Downstream of the audit, and structurally so rather than by ordering luck: the
+// gate list handed in already carries the audit verdict, and the strike list goes
+// with it, so the headline is checked against every claim the auditor killed
+// before it can reach the top of the page. A violation stops the render. A page
+// that leads with a struck claim is worse than no page, because the first line is
+// the one a reader takes on trust.
+const bluf = deriveBluf({ verdict: d.verdict, gates: cl.gates, struck: d.strikes?.struck });
+if (!bluf.ok && !bluf.missingVerdict) {
+  for (const e of bluf.errors) console.error(`renderBrief: ${e}`);
+  fail('the BLUF failed its own limits, so nothing was written. Fix src/bluf.js before rendering.');
+}
+
 const outPath =
   input.mode === 'packet'
     ? path.join(input.packetDir, 'brief.html')
@@ -1011,6 +1062,7 @@ const html = render({
   survived: st.survived,
   strikes: d.strikes || null,
   audit: d.audit || null,
+  bluf,
 });
 
 fs.writeFileSync(outPath, html);
@@ -1030,6 +1082,19 @@ console.log(
 );
 if (!cl.cleared) console.log('  NOT CLEARED for a packet. Rendered with the draft header and the open gates shown.');
 if (cl.dmMissing) console.log('  Decision-maker name is unresolved, which blocks a packet on one lookup.');
+
+// The headline, and what produced it. Printed every run so the line at the top
+// of the page is never something only the reader has seen.
+console.log(`  BLUF: ${bluf.text}`);
+console.log(`  ${bluf.wordCount} words, grade ${bluf.grade ?? 'n/a'}, from ${bluf.basis}`);
+for (const w of bluf.warnings) console.log(`  ${w}`);
+if (bluf.missingVerdict) {
+  // Loudly, and with a non-zero exit, but the page is still written: it says
+  // 'Verdict not recorded.' at the top, which is the honest thing for it to say.
+  for (const e of bluf.errors) console.error(`renderBrief: ${e}`);
+  console.error(`renderBrief: the page reads "${bluf.text}" at the top. Record a verdict and render again.`);
+  process.exitCode = 1;
+}
 
 if (d.strikes?.struck?.length) {
   const rows = st.struckCount;
