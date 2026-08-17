@@ -50,9 +50,19 @@ function makeRoot() {
   return root;
 }
 
-// A minimal audited diagnosis. The recorder reads exactly these fields, so the
-// fixture carries them and nothing else — a fixture that mirrors a whole real
-// file hides which field the code actually depends on.
+// A minimal audited diagnosis, where minimal now means "the smallest artifact
+// that is actually valid."
+//
+// This fixture used to carry only the fields the recorder reads, on the
+// reasoning that a fuller one hides which field the code depends on. That stopped
+// being true when the recorder started calling src/validateArtifact.js: it now
+// depends on the artifact passing evidence.json and audit.json, so a fixture
+// missing verify_seconds or unanswered_question_numbers is not a lean fixture,
+// it is an artifact the production path would refuse. It was refused, by this
+// suite, the first time the gate was wired in.
+//
+// coverage_score and unanswered_question_numbers have to agree: R-COVERAGE-CONSISTENT
+// recomputes (28 - unanswered.length) / 28, so 11 unanswered is 17/28 = 0.61.
 const diagnosis = (over = {}) => ({
   company: 'Testco',
   role: 'Senior Evaluation Engineer',
@@ -61,8 +71,8 @@ const diagnosis = (over = {}) => ({
   acquittal: 'EVIDENCE_SUFFICIENT',
   constraint_hypothesis: { weakest_link: 'Testco produces no more X than its slowest Y allows.' },
   evidence: [
-    { claim: 'a', inspectable_at: 'https://example.com/issues/1', source_class: 'backstage', strength: 5 },
-    { claim: 'b', inspectable_at: 'https://example.com/releases', source_class: 'backstage', strength: 4 },
+    { claim: 'a', inspectable_at: 'https://example.com/issues/1', verify_seconds: 8, source_class: 'backstage', strength: 5 },
+    { claim: 'b', inspectable_at: 'https://example.com/releases', verify_seconds: 6, source_class: 'backstage', strength: 4 },
   ],
   disconfirming: { query_issued: 'did a sandbox exist', result: 'nothing', survived: true },
   proof_match: { asset: 'persona_io', tier: 'sovereign', acts_on_constraint: false },
@@ -72,9 +82,17 @@ const diagnosis = (over = {}) => ({
   audit: {
     dated: '2026-08-15',
     coverage_score: 0.61,
+    unanswered_question_numbers: [4, 11, 12, 16, 17, 18, 23, 24, 25, 27, 28],
+    veto_results: {
+      q9_link_behind_claim: true,
+      q10_verify_under_60s: true,
+      q13_source_beyond_posting: true,
+      q19_staged_labeled: true,
+      q20_agent_assisted_labeled: true,
+    },
     verdict: 'PASS',
     auditor_evidence: [
-      { claim: 'c', inspectable_at: 'https://example.com/status/history', source_class: 'backstage', strength: 5 },
+      { claim: 'c', inspectable_at: 'https://example.com/status/history', verify_seconds: 4, source_class: 'backstage', strength: 5 },
     ],
     gaps: ['attacked row 2, it held'],
   },
@@ -475,7 +493,15 @@ t('a materially rewritten diagnosis is a real second visit', () => {
   writeDiagnosis(
     root,
     diagnosis({
-      evidence: [{ claim: 'new', inspectable_at: 'https://example.com/prs?sort=created-asc' }],
+      evidence: [
+        {
+          claim: 'new',
+          inspectable_at: 'https://example.com/prs?sort=created-asc',
+          verify_seconds: 9,
+          source_class: 'backstage',
+          strength: 4,
+        },
+      ],
       verdict: 'REJECT',
     })
   );
@@ -518,12 +544,27 @@ t('summary reports each file once', () => {
 // The CLI, which is what the slash commands and the server actually invoke
 // ---------------------------------------------------------------------------
 
+// casefile.js is copied into the fixture rather than imported, so the CLI under
+// test is the one that ships. It now imports the artifact gate, which imports the
+// integrity check and the schema validator, and the validator resolves its schema
+// directory relative to its own location — so the fixture needs the module graph
+// and .claude/schemas beside it. Copying casefile.js alone left the child dying on
+// ERR_MODULE_NOT_FOUND, which would have read as a CLI failure rather than a
+// missing fixture.
+function installCli(root) {
+  fs.mkdirSync(path.join(root, 'src/utils'), { recursive: true });
+  for (const f of ['casefile.js', 'validateArtifact.js', 'integrity.js', 'utils/schemaValidator.js']) {
+    fs.copyFileSync(path.join(REPO, 'src', f), path.join(root, 'src', f));
+  }
+  fs.mkdirSync(path.join(root, '.claude'), { recursive: true });
+  fs.symlinkSync(path.join(REPO, '.claude/schemas'), path.join(root, '.claude/schemas'));
+  fs.symlinkSync(path.join(REPO, 'node_modules'), path.join(root, 'node_modules'));
+}
+
 t('the CLI records, reports the verdict chain, and exits 0', () => {
   const root = makeRoot();
   writeDiagnosis(root, diagnosis());
-  fs.mkdirSync(path.join(root, 'src'), { recursive: true });
-  fs.copyFileSync(path.join(REPO, 'src/casefile.js'), path.join(root, 'src/casefile.js'));
-  fs.symlinkSync(path.join(REPO, 'node_modules'), path.join(root, 'node_modules'));
+  installCli(root);
 
   const out = execFileSync(process.execPath, ['src/casefile.js', '--record', 'Testco'], {
     cwd: root,
@@ -540,9 +581,7 @@ t('the CLI refuses an unaudited artifact and exits non-zero', () => {
   const doc = diagnosis();
   delete doc.audit;
   writeDiagnosis(root, doc);
-  fs.mkdirSync(path.join(root, 'src'), { recursive: true });
-  fs.copyFileSync(path.join(REPO, 'src/casefile.js'), path.join(root, 'src/casefile.js'));
-  fs.symlinkSync(path.join(REPO, 'node_modules'), path.join(root, 'node_modules'));
+  installCli(root);
 
   let code = 0;
   let stderr = '';

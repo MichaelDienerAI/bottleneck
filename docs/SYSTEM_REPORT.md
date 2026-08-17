@@ -16,7 +16,7 @@ This report consolidates. It does not replace `docs/ARCHITECTURE.md` (why), `doc
 >
 > | Finding in Part 4 | Now |
 > |---|---|
-> | 139 assertions, 4 suites | **241 assertions, 7 suites** — 97 gates, 34 casefile, 19 queue, 32 bluf, 41 schema, 8 automation, 10 liveness |
+> | 139 assertions, 4 suites | **291 assertions, 9 suites** — 97 gates, 34 casefile, 19 queue, 32 bluf, 19 ledger, 31 artifact, 41 schema, 8 automation, 10 liveness |
 > | **D1** case files never written | **Fixed.** `src/casefile.js --record` is wired into `/diagnose`, `/ship`, and the server's post-run hook. `data/cases/` holds six files. |
 > | **D2** `casefile.js` has no tests | **Fixed.** `src/casefile.test.js`, 34 assertions, temp directories only. |
 > | **D4** raw `Date` in the relocation flag | **Fixed.** Formats as `YYYY-MM-DD`. Existing `data/queue.json` rows carry the old string until the next scan rewrites them. |
@@ -25,7 +25,9 @@ This report consolidates. It does not replace `docs/ARCHITECTURE.md` (why), `doc
 >
 > Added since, neither of them in Part 4: repost detection (`data/reposts.json`, informational flag, index seeded 2026-08-16 and cannot fire for 60 days) and dashboard queue strikes (`data/struck.json`, backfill from the bench).
 >
-> **The headline finding of section 4.7 is unchanged and is still the thing that matters.** `data/ledger.json` does not exist, `packets/` is empty, zero packets have been built and zero sent. Every fix above is internal plumbing. None of it is evidence that the system works, and the drum of five per week remains a planning figure rather than a measured constraint.
+> **The headline finding of section 4.7 is unchanged and is still the thing that matters.** `packets/` is empty, zero packets have been built and zero sent. Every fix above is internal plumbing. None of it is evidence that the system works, and the drum of five per week remains a planning figure rather than a measured constraint.
+>
+> One correction to that finding as originally written, dated 2026-08-17. It said `data/ledger.json` does not exist, and that was true, and it was worse than it read: `loadLedger` returned `[]` for a missing file, so `openSlots` subtracted nothing from the cap and `npm run slots` printed **5**. The rope reported full capacity because the record of what had been spent was gone. `src/ledger.js` now fails closed — missing or corrupt returns 0 — and the file has been initialized to `[]`, which is the true claim that nothing has been sent. The count of 5 open slots is now a statement about an empty ledger rather than about a missing one.
 
 ---
 
@@ -395,6 +397,8 @@ These are not preferences. They are enforced in code, in tool sets, or in agent 
 | `src/renderBrief.js` | 1162 | Renders a diagnosis or packet to self-contained HTML, optionally PDF. Draft header drawn with borders so it survives printing. Also measures prose against the writing rules: banned vocabulary, corporate filler, Flesch-Kincaid grade. |
 | `src/bluf.js` | 366 | The one line above the Plain English view. Derives it from the recorded verdict and the gate that failed, never from the file's prose, and stops the render if it breaks a limit or repeats a struck claim. Also the `npm run bluf` table. |
 | `src/utils/schemaValidator.js` | 245 | Hand-rolled JSON Schema subset plus the four cross-cutting rules. Throws at first violation and names the path. |
+| `src/validateArtifact.js` | 166 | The call site that was missing. Projects the two payloads out of a diagnosis, runs the validators, checks the seal, and throws naming the schema path and the filing-standard question. Wired into the recorder, the renderer, and the server's completion hook. |
+| `src/integrity.js` | 223 | The pre-audit seal. Hashes every top-level key except `audit` and `strikes` before the auditor opens the file, so an auditor that revises rather than appends is visible afterward. |
 | `server.js` | 695 | Local dashboard on `node:http`. Shows queue, drum, and the clearance state of every diagnosis; a click spends a slot. Never sends, never interpolates a name into a shell string, runs one job at a time. |
 
 ## Agents, commands, schemas, references

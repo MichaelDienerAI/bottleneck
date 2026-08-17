@@ -39,6 +39,7 @@ import path from 'node:path';
 import { execFileSync } from 'node:child_process';
 import yaml from 'js-yaml';
 import { deriveBluf } from './bluf.js';
+import { validateArtifact } from './validateArtifact.js';
 
 const ROOT = path.resolve(import.meta.dirname, '..');
 
@@ -1021,6 +1022,24 @@ if (!input.diagnosisPath) fail(`No diagnosis in data/diagnoses/ for this packet.
 
 const d = readYaml(input.diagnosisPath);
 if (!d) fail(`Could not read ${input.diagnosisPath}.`);
+
+// The schema gate and the pre-audit seal, before a single tag is written.
+//
+// This page is the most sendable artifact the repository produces, which makes
+// it the last place an unvalidated claim should reach. An unaudited diagnosis
+// still renders — the page is built to report that state and says so on its face
+// — but an artifact that violates its own schema, or whose diagnostician half
+// was altered after the seal was taken, does not become a page.
+const artifactRel = path.relative(ROOT, input.diagnosisPath);
+try {
+  const check = validateArtifact(d, { artifact: artifactRel });
+  for (const w of check.findings.filter((f) => f.severity === 'warning')) {
+    console.log(`  warn [${w.rule}] ${w.message}`);
+  }
+} catch (e) {
+  console.error(e.message);
+  fail('the artifact did not pass the schema gate, so nothing was rendered.');
+}
 
 const ledger = readYaml('profile/proof-ledger.yaml');
 const cl = clearance(d);

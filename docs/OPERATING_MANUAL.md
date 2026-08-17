@@ -42,14 +42,17 @@ Run these in a terminal:
 | Command | What it does |
 |---|---|
 | `npm run slots` | How many packet slots are left this week. Ask this first |
+| `npm run init-ledger` | Creates `data/ledger.json` as an empty ledger. Needed once, on a fresh checkout. Never truncates an existing one |
+| `npm run seal <company>` | Hashes what the diagnostician wrote, before the auditor opens the file. `/diagnose` runs this between the two agents |
 | `npm run report` | Full ledger readout: weekly fitness, narrative samples, defect classes, RAND experiment |
 | `npm run scan` | Half one's fetch on its own, without the agent wrapper |
+| `npm run fresh` | Re-runs the deduplication rules against the buffer, purges rows whose company has since closed or cooled, and backfills from the bench. No network. `--dry-run` to inspect only |
 | `npm run board` | Rebuilds `data/board.html` |
 | `npm run walk` | Rebuilds `data/walkthrough.html` |
 | `npm run brief <company>` | Renders a diagnosis, or a packet directory, to one self-contained HTML page. Add `--pdf` for a PDF via system Chrome. Reports the clearance state it found and gates nothing |
 | `npm run verify` | Checks every board token in `profile/companies.yaml`. Writes `data/token-verification.json` |
 | `npm run bluf` | Prints every diagnosis, its verdict, and the headline the renderer will put at the top of its Plain English view |
-| `npm test` | Seven suites, 241 assertions, no network. Run before you trust anything |
+| `npm test` | Nine suites, 291 assertions, no network. Run before you trust anything |
 | `./bin/run.sh` | Runs the whole scheduled job by hand, exactly as launchd runs it |
 
 ## The pipeline, end to end
@@ -110,7 +113,7 @@ ls -lt data/logs/ | head            # last several runs
 
 **"Is anything broken?"**
 ```bash
-npm test                            # expect 97 + 34 + 19 + 32 + 41 + 8 + 10 passing, 241 total
+npm test                            # expect 97 + 34 + 19 + 32 + 19 + 31 + 41 + 8 + 10 passing, 291 total
 ```
 
 **"I want to see today's work."** Open `data/board.html` and `data/briefs/<today>.md` in a browser and an editor.

@@ -12,10 +12,71 @@ import yaml from 'js-yaml';
 const ROOT = path.resolve(import.meta.dirname, '..');
 const LEDGER = 'data/ledger.json';
 
-export function loadLedger(root = ROOT) {
+// THE ROPE FAILS CLOSED.
+//
+// loadLedger returned [] for a missing file, and openSlots subtracts what it
+// finds from the weekly cap, so an absent ledger reported the full five slots.
+// The file that records what was spent going missing is not evidence that
+// nothing was spent — it is the loss of the only record that could say. On
+// 2026-08-17 data/ledger.json did not exist and `npm run slots` printed 5.
+//
+// Three states, and only one of them opens the gate:
+//
+//   ok       the file parses and is an array. Count the rows.
+//   missing  no file. Zero slots until someone runs `npm run init-ledger`,
+//            which is a deliberate act that says "nothing has been sent."
+//   corrupt  present and unreadable. Zero slots. Never repaired automatically:
+//            a rewrite of an unparseable ledger destroys the one record in this
+//            repository that cannot be regenerated from anything else.
+//
+// An initialized empty ledger is `ok` and opens the full cap, which is correct.
+// The distinction this code draws is between "recorded as nothing" and "no
+// record," and the whole point is that those are not the same claim.
+export const LEDGER_PATH = LEDGER;
+
+export function ledgerState(root = ROOT) {
   const p = path.join(root, LEDGER);
-  return fs.existsSync(p) ? JSON.parse(fs.readFileSync(p, 'utf8')) : [];
+  if (!fs.existsSync(p)) return { state: 'missing', rows: [], reason: `${LEDGER} does not exist` };
+  let raw;
+  try {
+    raw = fs.readFileSync(p, 'utf8');
+  } catch (e) {
+    return { state: 'corrupt', rows: [], reason: `unreadable: ${e.message}` };
+  }
+  try {
+    const rows = JSON.parse(raw);
+    if (!Array.isArray(rows)) return { state: 'corrupt', rows: [], reason: `expected a JSON array, got ${typeof rows}` };
+    return { state: 'ok', rows, reason: null };
+  } catch (e) {
+    return { state: 'corrupt', rows: [], reason: `will not parse: ${e.message}` };
+  }
 }
+
+// Kept for report() and add(), which want the rows and have already checked the
+// state. Throws on corrupt rather than returning [], because a report drawn from
+// an empty array it invented is a report about nothing that reads as a report
+// about a quiet week.
+export function loadLedger(root = ROOT) {
+  const { state, rows, reason } = ledgerState(root);
+  if (state === 'corrupt') throw new Error(`${LEDGER} ${reason}`);
+  return rows;
+}
+
+// Creates the file only when it does not exist. Never truncates an existing one.
+export function initLedger(root = ROOT) {
+  const p = path.join(root, LEDGER);
+  if (fs.existsSync(p)) {
+    const { state, rows, reason } = ledgerState(root);
+    return { created: false, state, rows: rows.length, reason };
+  }
+  fs.mkdirSync(path.dirname(p), { recursive: true });
+  fs.writeFileSync(p, '[]\n');
+  return { created: true, state: 'ok', rows: 0, reason: null };
+}
+
+// Once per process. openSlots is called on every dashboard poll, and a warning
+// printed sixty times a minute is a warning nobody reads.
+let warned = false;
 
 function saveLedger(rows, root = ROOT) {
   fs.writeFileSync(path.join(root, LEDGER), JSON.stringify(rows, null, 2) + '\n');
@@ -40,6 +101,24 @@ export function weekStart(d = new Date()) {
 }
 
 export function openSlots(root = ROOT, cfg = null) {
+  // Before anything else, and before the config is even read: no readable record
+  // of what was spent means no slots. stderr, never stdout — `--slots` prints one
+  // integer and bin/run.sh reads it with a command substitution, so a diagnostic
+  // on stdout would be parsed as the slot count.
+  const led = ledgerState(root);
+  if (led.state !== 'ok') {
+    if (!warned) {
+      warned = true;
+      console.error(
+        `ledger: ${led.reason}. Reporting 0 open slots.\n` +
+          (led.state === 'missing'
+            ? '        Run `npm run init-ledger` to record that nothing has been sent.'
+            : '        Repair it by hand. This file is not regenerable and will not be rewritten automatically.')
+      );
+    }
+    return 0;
+  }
+
   if (!cfg) {
     const p = fs.existsSync(path.join(root, 'profile/gates.yaml'))
       ? 'profile/gates.yaml'
@@ -48,7 +127,7 @@ export function openSlots(root = ROOT, cfg = null) {
   }
   const cap = cfg.drum?.packets_per_week ?? 5;
   const ws = weekStart();
-  const used = loadLedger(root).filter((r) => weekStart(new Date(r.date)) === ws).length;
+  const used = led.rows.filter((r) => weekStart(new Date(r.date)) === ws).length;
   return Math.max(0, cap - used);
 }
 
@@ -172,6 +251,20 @@ function median(xs) {
 }
 
 function add(file, root = ROOT) {
+  // A row appended to a ledger that is not there would recreate the file with one
+  // entry and read afterward as "one packet has ever been sent." Refuse, and make
+  // restoring or initializing it a decision someone makes on purpose.
+  const led = ledgerState(root);
+  if (led.state !== 'ok') {
+    console.error(`Refusing to add. ${LEDGER} ${led.reason}.`);
+    console.error(
+      led.state === 'missing'
+        ? 'Run `npm run init-ledger` first, or restore the file from a backup. Appending to a ledger that is not there would record this packet as the only one ever sent.'
+        : 'Repair it by hand. This file is not regenerable.'
+    );
+    process.exit(1);
+  }
+
   const row = JSON.parse(fs.readFileSync(path.resolve(file), 'utf8'));
 
   // Card 1 instrumentation. These two fields are the whole experiment, so a row
@@ -224,3 +317,16 @@ const arg = process.argv[2];
 if (arg === '--slots') console.log(openSlots());
 else if (arg === '--report') report();
 else if (arg === '--add') add(process.argv[3]);
+else if (arg === '--init') {
+  const r = initLedger();
+  if (r.created) {
+    console.log(`Created ${LEDGER} as an empty ledger. Nothing has been sent.`);
+    console.log(`Open slots now: ${openSlots()}`);
+  } else if (r.state === 'ok') {
+    console.log(`${LEDGER} already exists and holds ${r.rows} row${r.rows === 1 ? '' : 's'}. Left alone.`);
+  } else {
+    console.error(`${LEDGER} exists and is ${r.state}: ${r.reason}`);
+    console.error('Refusing to overwrite it. This file is not regenerable; repair it by hand.');
+    process.exit(1);
+  }
+}

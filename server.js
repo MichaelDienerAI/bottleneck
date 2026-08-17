@@ -25,10 +25,11 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { spawn } from 'node:child_process';
 import yaml from 'js-yaml';
-import { openSlots, loadLedger, weekStart } from './src/ledger.js';
+import { openSlots, ledgerState, weekStart } from './src/ledger.js';
 import { shouldSkip } from './src/casefile.js';
 import { compositeScore } from './src/gates.js';
 import { strikeRow, strikeRecord, eligibleBackfill, pickBackfill } from './src/queue.js';
+import { inspectArtifact } from './src/validateArtifact.js';
 
 const ROOT = path.resolve(import.meta.dirname);
 const PORT = Number(process.env.PORT || 3000);
@@ -170,6 +171,7 @@ function state() {
   const cfg = readYaml('profile/gates.yaml') || readYaml('profile/gates.example.yaml') || {};
   const cap = cfg.drum?.packets_per_week ?? 5;
   const slots = openSlots(ROOT, cfg);
+  const led = ledgerState(ROOT);
   const today = new Date().toISOString().slice(0, 10);
 
   const queue = readQueue();
@@ -221,7 +223,12 @@ function state() {
     cap,
     slots,
     used: cap - slots,
-    sent: loadLedger(ROOT).length,
+    // ledgerState rather than loadLedger: this runs on every dashboard poll, and
+    // loadLedger throws on a corrupt file. An unreadable ledger already closes
+    // the drum through openSlots above; it should not also take the page down and
+    // leave no way to see that that is why.
+    sent: led.state === 'ok' ? led.rows.length : null,
+    ledger_state: led.state,
     rows,
     bufferMax: cfg.drum?.buffer_max ?? 10,
     bench: waiting.slice(0, 6).map((c) => ({
@@ -379,6 +386,19 @@ function startJob(action, company) {
   child.on('close', (code) => {
     if (code !== 0) return finish(job, code);
 
+    // The completion gate. The model is done; nothing it produced has been
+    // checked. This runs before the recorder because the case file is the store
+    // a later run inherits as settled, and an artifact that fails its schema must
+    // not become a prior.
+    //
+    // A limitation worth stating rather than hiding: this path cannot seal. The
+    // seal is taken between the diagnostician and the auditor, and both run
+    // inside the single child session spawned above, so there is no moment out
+    // here to interpose on. argsFor() also grants no Bash, so the model cannot
+    // run the seal command itself. Dashboard-run diagnoses are therefore
+    // unsealed, and the gate reports that rather than implying otherwise.
+    if (!gateArtifact(job)) return finish(job, code);
+
     // Two deterministic steps run after the model is done.
     //
     // The case file is the system's memory across weeks, and it is written here
@@ -399,6 +419,44 @@ function startJob(action, company) {
   });
 
   return job;
+}
+
+// Runs the schema gate and the seal check on the artifact this job produced, and
+// writes what it found into the job log so the dashboard shows it rather than
+// only the terminal.
+//
+// Returns false when the artifact must not proceed to the recorder. A missing
+// artifact is not a gate failure: the model may have stopped for its own
+// reasons, and the recorder reports that in its own words a step later.
+function gateArtifact(job) {
+  const row = readQueue().find((j) => j.company === job.company);
+  const file = diagnosisFile(job.company, row?.title);
+  if (!file) {
+    push(job, 'meta', 'no diagnosis on disk to validate');
+    return true;
+  }
+
+  const rel = path.relative(ROOT, file);
+  const doc = readYaml(rel);
+  if (!doc) {
+    push(job, 'stderr', `${rel} will not parse as YAML. Refusing to record it.`);
+    return false;
+  }
+
+  push(job, 'meta', `$ schema gate ${rel}`);
+  const result = inspectArtifact(doc, { artifact: rel });
+  for (const f of result.findings) {
+    if (f.severity === 'error') push(job, 'stderr', `FAIL [${f.rule}] ${f.message}`);
+    else if (f.severity === 'warning') push(job, 'stdout', `warn [${f.rule}] ${f.message}`);
+    else push(job, 'stdout', `     [${f.rule}] ${f.message}`);
+    if (f.question) push(job, 'stdout', `     filing standard Q${f.question}: ${f.question_text}`);
+  }
+  if (!result.ok) {
+    push(job, 'stderr', 'Artifact failed the schema gate. The case file was not written.');
+    return false;
+  }
+  push(job, 'stdout', `schema gate passed${result.seal ? ` · seal ${result.seal.state}` : ''}`);
+  return true;
 }
 
 // Sequential node steps, logged into the same job. A failing step is recorded

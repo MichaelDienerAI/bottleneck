@@ -112,7 +112,14 @@ audit:
       specificity_leak:             # true only on a frontstage row admissible as a leak. omit otherwise
   verdict: PASS | REJECT
   gaps: []                          # anything you could not verify, named rather than smoothed over
+  diagnostician_digest:             # the 64-char sha256 from the .seal.json sidecar. copy it, do not compute it
 ```
+
+**You append. You do not revise.** Before you were called, `node src/integrity.js --seal` hashed every top-level key in this artifact except `audit` and `strikes`, and wrote the digest to `data/diagnoses/<slug>.seal.json`. Add your two blocks and change nothing else. Editing an evidence row, a URL, a verdict, or a number in the diagnostician's half changes that hash, and `src/validateArtifact.js` refuses the artifact at the recorder and at the renderer — the diagnosis stops there.
+
+If a claim is wrong, that is what a strike is for. Strike it, give the defensible rewrite, and leave the original text standing. The strike log is the record that you disagreed; a silent correction destroys it and leaves an artifact that looks like the diagnostician wrote something they did not.
+
+Copy `diagnostician_digest` out of the sidecar verbatim. Do not recompute it and do not guess it: the check compares your copy against the sealed value, so a digest you derived yourself proves nothing and a wrong one fails the artifact.
 
 **Quote the date.** `dated: 2026-08-13` is a YAML timestamp and parses to a JavaScript `Date`, not a string. `audit.json` requires a string matching `^\d{4}-\d{2}-\d{2}$`, so an unquoted date fails `validateAudit` on the one field you could not get wrong on the merits. Write `dated: '2026-08-13'`. Nothing in the test suite catches this, because the validators are only ever handed object literals in `test/schema.test.js` and never a file, so the file you write is the only place it can be caught.
 

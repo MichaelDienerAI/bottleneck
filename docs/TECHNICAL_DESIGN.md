@@ -34,8 +34,11 @@ src/
   sources.js                  ATS fetchers, one output shape
   gates.js                    Gate 0 and ranking, pure functions
   casefile.js                 per-company persistent state
-  scan.js                     sourcing CLI
-  ledger.js                   drum accounting, tracking, RAND readout
+  scan.js                     sourcing CLI, plus the --audit-freshness pass
+  freshness.js                re-gates a buffer promoted days ago, pure functions
+  ledger.js                   drum accounting, tracking, RAND readout. fails closed
+  validateArtifact.js         the production schema gate, called before any write
+  integrity.js                pre-audit seal. did the auditor append or revise?
   verify.js                   board token checker
   renderBrief.js              diagnosis or packet to one self-contained HTML page
   bluf.js                     the one-line headline above the Plain English view
@@ -45,6 +48,8 @@ src/
   casefile.test.js            34 assertions, temp dirs only, never touches data/cases
   queue.test.js               19 assertions, pure functions only
   bluf.test.js                32 assertions, pure functions only
+  ledger.test.js              19 assertions, temp roots, the fail-closed rope
+  artifact.test.js            31 assertions, the schema gate and the seal
 data/                         generated, gitignored
 packets/                      generated, gitignored
 ```
@@ -386,12 +391,14 @@ The loop never lets the producing agent certify its own completion. SHIP is a ch
 
 ## 9. Testing
 
-`npm test` runs seven suites in order, 241 assertions, no network and no model in any of them.
+`npm test` runs nine suites in order, 291 assertions, no network and no model in any of them.
 
 | Suite | Assertions | Covers |
 |---|---|---|
 | `src/gates.test.js` | 81 | Title family matching, seniority rejection, each disqualifier group, location logic, published and free-text compensation, flag-not-fail behavior on missing data, blocking-versus-informational flags, per-company caps, and weight-based ranking |
 | `test/schema.test.js` | 41 | Both payload schemas and the four rules JSON Schema cannot express: R-BACKSTAGE, R-ACQUITTAL, R-VETO, R-THRESHOLD, R-COVERAGE-CONSISTENT, R-AUDITOR-BACKSTAGE |
+| `src/ledger.test.js` | 19 | The rope, and the one property that matters: a missing ledger opens no slots, a corrupt one opens no slots, an initialized empty one opens the cap. `initLedger` never truncates the one file in this repository that cannot be regenerated |
+| `src/artifact.test.js` | 31 | The production schema gate and the pre-audit seal: the evidence and audit payloads against their schemas, the five mandatory questions by number, and the case the seal exists for — an auditor that appends its blocks and also quietly rewrites an evidence row |
 | `src/bluf.test.js` | 32 | The headline above the Plain English view: the 25-word ceiling, the banned-jargon list, passive voice, the reading-grade ceiling, em dashes, and the two that matter most — a headline repeating a struck claim must fail the render, and a missing verdict must render `Verdict not recorded.` rather than infer one from the gates |
 | `test/automation.test.js` | 7 | `bin/run.sh` orchestration against a fixture repo under a temporary `HOME`: a clean run, a full drum, a missing CLI, a missing brief agent, and a corrupted or non-integer ledger. Plus the week boundary: `weekStart` and `openSlots` run in child processes with `TZ` set, at hours that straddle the UTC date line in zones on both sides of it |
 

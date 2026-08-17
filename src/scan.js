@@ -22,8 +22,9 @@ import {
   MAX_AGE_DAYS,
 } from './gates.js';
 import { openSlots } from './ledger.js';
-import { shouldSkip } from './casefile.js';
+import { shouldSkip, load as loadCase, slugify } from './casefile.js';
 import { delisted, unverifiable, checkUrls } from './liveness.js';
+import { auditQueue, purgeAndBackfill, historyCounts, blockedBySeen } from './freshness.js';
 
 const ROOT = path.resolve(import.meta.dirname, '..');
 const read = (p) => yaml.load(fs.readFileSync(path.join(ROOT, p), 'utf8'));
@@ -301,7 +302,200 @@ async function main() {
   if (errors.length) console.log(`board errors ${errors.length}  run node src/verify.js`);
 }
 
-main().catch((e) => {
-  console.error(e);
-  process.exit(1);
-});
+// ---------------------------------------------------------------------------
+// Freshness audit
+// ---------------------------------------------------------------------------
+
+// Re-runs the deduplication rules against a buffer that was gated days ago, and
+// repairs it. No network: every input is a file already on disk, which is what
+// makes it safe to run at any hour and safe to run twice. The rules themselves
+// live in src/freshness.js; this function reads, prints, and writes.
+function auditFreshness({ dryRun = false } = {}) {
+  const cfg = read(
+    fs.existsSync(path.join(ROOT, 'profile/gates.yaml')) ? 'profile/gates.yaml' : 'profile/gates.example.yaml'
+  );
+
+  // Same weights the scan ranks with, so a backfilled row carries the same score
+  // it would have carried had the scan promoted it. server.js does this on its
+  // own strike-and-backfill path; a row that reaches the buffer by a third route
+  // and arrives without a score would sort as if it had none.
+  const registry = read('profile/companies.yaml');
+  const weights = Object.fromEntries(
+    Object.entries(registry.archetypes).map(([archetype, block]) => [archetype, block.weight])
+  );
+
+  const d = new Date();
+  const today = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+
+  const queue = loadJson('data/queue.json', []);
+  const candidates = loadJson('data/candidates.json', []);
+  const seenList = loadJson('data/seen.json', []);
+  const struck = loadJson('data/struck.json', []);
+  const delistedLog = loadJson('data/delisted.json', []);
+  const killed = loadJson('data/killed.json', []);
+
+  const casesDir = path.join(ROOT, 'data/cases');
+  const cases = fs.existsSync(casesDir)
+    ? fs
+        .readdirSync(casesDir)
+        .filter((f) => f.endsWith('.json'))
+        .map((f) => JSON.parse(fs.readFileSync(path.join(casesDir, f), 'utf8')))
+    : [];
+  const caseBySlug = new Map(cases.map((c) => [c.slug, c]));
+
+  const ctx = {
+    struckKeys: new Set(struck.map((r) => r.key)),
+    delistedKeys: new Set(delistedLog.map((r) => r.key)),
+    isClosed: (company) => shouldSkip(company),
+    caseFor: (company) => caseBySlug.get(slugify(company)) || loadCase(company),
+    maxPerCompany: cfg.drum?.max_per_company ?? 2,
+  };
+
+  const bufferMax = cfg.drum?.buffer_max ?? 10;
+  const seenKeys = new Set(seenList);
+  const counts = historyCounts({ seen: seenList, candidates, killed, delisted: delistedLog, struck, cases });
+
+  console.log(`Freshness audit · ${today}`);
+  console.log('');
+
+  // 1. History.
+  console.log('HISTORY');
+  console.log(`  ${counts.seen} postings tracked in data/seen.json, every board row ever fetched`);
+  console.log(`  ${counts.candidates} on the current board past Gate 0, ${counts.killed} killed this scan`);
+  console.log(`  ${counts.delisted} delisted, ${counts.struck} struck by hand`);
+  console.log(`  ${counts.cases} case files holding ${counts.visits} recorded visits`);
+  console.log('');
+
+  // 2. Closed and cooling companies, from the case files rather than from memory.
+  const closed = cases
+    .map((c) => ({ company: c.company, status: c.status, ...shouldSkip(c.company) }))
+    .filter((c) => c.skip);
+  console.log(`CLOSED OR COOLING  ${closed.length} of ${cases.length} companies`);
+  if (!closed.length) console.log('  None. Every company with a case file is workable today.');
+  for (const c of closed) console.log(`  ${c.company.padEnd(16)} ${c.status.padEnd(12)} ${c.reason}`);
+  console.log('');
+
+  // 3. What deduplication is holding back.
+  //
+  // seen.json is reported as the promotion gate it is. A buffer row appearing in
+  // it is correct and is not a finding: scan.js writes every promoted key into
+  // seen.json on the run that promotes it.
+  const seenBlocked = blockedBySeen(candidates, seenKeys, queue);
+  const inBuffer = queue.filter((r) => seenKeys.has(r.key)).length;
+  console.log('PREVENTED FROM RESURFACING');
+  console.log(`  ${struck.length} struck by hand, and promotion will not offer them again:`);
+  for (const s of struck) console.log(`    ${s.struck_at}  ${s.company} — ${String(s.title).trim()}`);
+  console.log(`  ${seenBlocked.length} rows on the current board are already in seen.json and not in the buffer,`);
+  console.log(`  so promotion will not look at them again. Highest scoring of those:`);
+  for (const c of seenBlocked.slice(0, 5)) console.log(`    ${c.company} — ${String(c.title).trim()}`);
+  console.log(`  ${inBuffer} of ${queue.length} buffer rows are in seen.json. That is correct, not a violation:`);
+  console.log('  a promoted key is written to seen.json by the run that promotes it. seen.json');
+  console.log('  gates promotion, never residency, so it is not a purge rule here.');
+  console.log('');
+
+  // 4. The buffer, row by row.
+  const audited = auditQueue(queue, ctx);
+  const clean = audited.filter((a) => a.fresh);
+  console.log(`BUFFER  ${queue.length}/${bufferMax} rows, ${clean.length} fresh, ${audited.length - clean.length} in violation`);
+  for (const [i, a] of audited.entries()) {
+    const mark = a.fresh ? 'ok  ' : 'STALE';
+    console.log(`  ${String(i + 1).padStart(2)} ${mark} ${a.company.padEnd(16)} ${a.title.slice(0, 52)}`);
+    console.log(
+      `        ${a.visits} visit${a.visits === 1 ? '' : 's'}, ${a.repeatVisits} repeat without new evidence` +
+        `${a.status ? `, case ${a.status}` : ', no case file'}`
+    );
+    for (const v of a.violations) console.log(`        VIOLATION ${v.rule}: ${v.detail}`);
+  }
+  console.log('');
+
+  // Reported and never purged on. A cap breach means promotion is broken, and
+  // deleting the rows would erase the evidence of the bug that made them.
+  const perCompany = new Map();
+  for (const r of queue) perCompany.set(r.company, (perCompany.get(r.company) || 0) + 1);
+  const overCap = [...perCompany.entries()].filter(([, n]) => n > ctx.maxPerCompany);
+  for (const [company, n] of overCap) {
+    console.log(`  NOTE ${company} holds ${n} rows, over the cap of ${ctx.maxPerCompany}. Not purged. Promotion is at fault.`);
+  }
+
+  // 5. Repair.
+  const result = purgeAndBackfill(queue, candidates, ctx);
+  if (!result.purged.length) {
+    console.log('Nothing to purge. The buffer passes every deduplication rule it was gated on.');
+    return;
+  }
+
+  console.log(`PURGE  ${result.purged.length} row${result.purged.length === 1 ? '' : 's'}`);
+  for (const r of result.purged) {
+    const a = audited.find((x) => x.key === r.key);
+    console.log(`  out  ${r.company} — ${String(r.title).trim()}`);
+    for (const v of a.violations) console.log(`       ${v.rule}: ${v.detail}`);
+  }
+  console.log(`BACKFILL  ${result.backfilled.length} from the bench of ${candidates.length}`);
+  for (const r of result.backfilled) {
+    console.log(`  in   ${r.company} — ${String(r.title).trim()}  (${r.archetype})`);
+  }
+  const short = result.purged.length - result.backfilled.length;
+  if (short > 0) console.log(`  ${short} slot${short === 1 ? '' : 's'} left empty. The bench held no eligible row. The next scan fills them.`);
+
+  if (dryRun) {
+    console.log('');
+    console.log('--dry-run: data/queue.json was not written.');
+    return;
+  }
+
+  // The removal leaves a dated record. A row that vanished from the buffer with
+  // nothing on disk explaining why is the unexplained state this repo refuses
+  // everywhere else. It does not go in struck.json, which means Michael declined
+  // it and blocks it forever, nor in delisted.json, which means the board took it
+  // down. Neither is true of a row whose company is merely cooling until a date.
+  const log = [
+    ...loadJson('data/freshness-audit.json', []),
+    {
+      at: today,
+      buffer_before: queue.length,
+      buffer_after: result.queue.length,
+      purged: result.purged.map((r) => ({
+        key: r.key,
+        company: r.company,
+        title: String(r.title).trim(),
+        violations: audited.find((a) => a.key === r.key)?.violations ?? [],
+      })),
+      backfilled: result.backfilled.map((r) => ({
+        key: r.key,
+        company: r.company,
+        title: String(r.title).trim(),
+        replaces: r.backfilled_for,
+      })),
+    },
+  ].slice(-200);
+
+  // Provenance stays on the row, the same fields and the same shape server.js
+  // writes when a strike backfills a slot. A row that appeared in the buffer
+  // without the scan promoting it should say so on its face, not only in a log.
+  writeJson('data/freshness-audit.json', log);
+  writeJson(
+    'data/queue.json',
+    result.queue.map(({ backfilled_reason, ...r }) =>
+      r.backfilled_for
+        ? { ...r, score: Number(compositeScore(r, weights, cfg).toFixed(2)), backfilled_at: today }
+        : r
+    )
+  );
+  console.log('');
+  console.log(`Buffer now ${result.queue.length}/${bufferMax}. Record in data/freshness-audit.json.`);
+}
+
+const argv = process.argv.slice(2);
+if (argv.includes('--audit-freshness')) {
+  try {
+    auditFreshness({ dryRun: argv.includes('--dry-run') });
+  } catch (e) {
+    console.error(e);
+    process.exit(1);
+  }
+} else {
+  main().catch((e) => {
+    console.error(e);
+    process.exit(1);
+  });
+}

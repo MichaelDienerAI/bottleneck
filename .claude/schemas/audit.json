@@ -50,6 +50,11 @@
       "type": "array",
       "description": "Anything that could not be verified, named rather than smoothed over.",
       "items": { "type": "string", "minLength": 1 }
+    },
+    "diagnostician_digest": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$",
+      "description": "The SHA-256 taken by src/integrity.js --seal after the diagnostician finished and before this audit began, copied from the .seal.json sidecar. Optional, because artifacts written before the seal existed do not carry one. When present it must equal the sidecar, and src/validateArtifact.js fails the artifact when it does not: an auditor reporting a digest other than the one taken is the case this field exists to expose."
     }
   },
   "$defs": {
@@ -108,6 +113,11 @@
       "id": "R-AUDITOR-BACKSTAGE",
       "description": "A PASS verdict requires at least one backstage row in auditor_evidence, or a labeled specificity leak. This is auditor.md's posting_only_rows: 0, enforced in code.",
       "implemented_by": "src/utils/schemaValidator.js validateAudit"
+    },
+    {
+      "id": "R-SEAL",
+      "description": "The diagnostician's half of the artifact must hash to the digest sealed before the audit ran. The auditor appends `audit` and `strikes` and changes nothing else. An artifact with no seal is reported and allowed; one whose seal does not match is refused.",
+      "implemented_by": "src/integrity.js verify, called from src/validateArtifact.js"
     }
   ]
 }

@@ -22,6 +22,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import yaml from 'js-yaml';
+import { validateArtifact } from './validateArtifact.js';
 
 const ROOT = path.resolve(import.meta.dirname, '..');
 
@@ -298,6 +299,17 @@ export function recordFromDiagnosis(target, { root = ROOT, parkDays = 30, stage 
       `${path.relative(root, file)} carries no audit block. ` +
         'A case file records what the auditor ruled on, so nothing is written until the audit runs.'
     );
+  }
+
+  // The schema gate, and the seal. Memory is the one store in this system that a
+  // later run inherits as settled, so an artifact that does not validate must not
+  // reach it — a malformed evidence row recorded once becomes a prior nobody
+  // rechecks. The seal check is here for the same reason: if the auditor altered
+  // what the diagnostician wrote, the visit about to be filed describes a reading
+  // that no longer exists.
+  const check = validateArtifact(doc, { artifact: path.relative(root, file) });
+  for (const w of check.findings.filter((f) => f.severity === 'warning')) {
+    console.error(`  warn [${w.rule}] ${w.message}`);
   }
 
   const existing = load(doc.company, root);
