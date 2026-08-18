@@ -59,7 +59,7 @@ Run these in a terminal:
 | `npm run diorismos -- --register <packet dir>` | Writes the packet acceptance criteria BEFORE drafting. Reports NOT CONSTRUCTIBLE when the parts are missing |
 | `npm run diorismos -- --check <packet dir> --enforce` | Measures the drafts against what was registered. Quarantines violations into rejected/ |
 | `npm run ingest:jd` | Pastes a job description straight into the buffer. `pbpaste | npm run ingest:jd -- --company X --role Y`. Runs Gate 0 and reports it without vetoing |
-| `npm test` | Fifteen suites, 454 assertions, no network, no model. Run before you trust anything |
+| `npm test` | Sixteen suites, 467 assertions, no network, no model. Run before you trust anything |
 | `./bin/run.sh` | Runs the whole scheduled job by hand, exactly as launchd runs it |
 
 ## The pipeline, end to end
@@ -120,7 +120,7 @@ ls -lt data/logs/ | head            # last several runs
 
 **"Is anything broken?"**
 ```bash
-npm test                            # expect 97 + 43 + 19 + 32 + 19 + 31 + 32 + 31 + 27 + 13 + 16 + 17 + 59 + 8 + 10 passing, 454 total
+npm test                            # expect 97 + 43 + 19 + 32 + 19 + 31 + 32 + 31 + 27 + 13 + 16 + 17 + 13 + 59 + 8 + 10 passing, 467 total
 ```
 
 **"I want to see today's work."** Open `data/board.html` and `data/briefs/<today>.md` in a browser and an editor.

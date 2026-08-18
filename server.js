@@ -24,6 +24,7 @@ import http from 'node:http';
 import fs from 'node:fs';
 import path from 'node:path';
 import { spawn } from 'node:child_process';
+import { pathToFileURL } from 'node:url';
 import yaml from 'js-yaml';
 import { openSlots, ledgerState, weekStart } from './src/ledger.js';
 import { shouldSkip, load as loadCase, closeDead } from './src/casefile.js';
@@ -1524,6 +1525,19 @@ function line(l) {
 }
 
 async function load() {
+  try {
+    await render();
+  } catch (e) {
+    // A render that throws used to leave the placeholder dash and three empty
+    // lists, which reads as "nothing in the queue" rather than as "this page is
+    // broken". Those are opposite findings and the page must not confuse them.
+    console.error('dashboard render failed', e);
+    var d = document.getElementById('drumlabel');
+    if (d) d.innerHTML = 'The dashboard could not render. Open the browser console; the queue itself is fine on disk.';
+  }
+}
+
+async function render() {
   const s = await (await fetch('/api/state')).json();
   document.getElementById('slots').textContent = s.slots;
   document.getElementById('drumlabel').innerHTML =
@@ -1582,7 +1596,7 @@ es.addEventListener('line', (e) => {
   line(l);
   // The manual tab's phase strip reads the same lines the log does, rather than
   // a second channel that could disagree with the run it is describing.
-  if (window.__manualPhase) window.__manualPhase(l.line || '');
+  try { if (window.__manualPhase) window.__manualPhase(l.line || ''); } catch (err) { console.error(err); }
 });
 es.addEventListener('done', (e) => {
   running = false;
@@ -1590,13 +1604,20 @@ es.addEventListener('done', (e) => {
   sum.textContent = sum.textContent.replace('Running', 'Finished');
   let code = 0;
   try { code = JSON.parse(e.data).code; } catch (err) {}
-  if (window.__manualDone) window.__manualDone(code);
+  try { if (window.__manualDone) window.__manualDone(code); } catch (err) { console.error(err); }
   load();
 });
 
 load();
 
 // ---------------------------------------------------------------- tabs
+//
+// FIRST, and inside its own try/catch. Tab switching is how a reader reaches
+// anything at all, so it must not depend on the queue rendering, the SSE client,
+// or the manual form. A single throw anywhere in this script used to take all
+// four down together, which is how one bad regex produced a dashboard with
+// placeholder data AND dead tabs and no obvious connection between the two.
+try {
 (function () {
   var tabs = [].slice.call(document.querySelectorAll('.tab'));
   function show(name) {
@@ -1610,8 +1631,14 @@ load();
   try { want = localStorage.getItem('bottleneck:tab'); } catch (e) {}
   if (want) show(want);
 })();
+} catch (e) { console.error('tab switching failed to initialise', e); }
 
 // ---------------------------------------------------------------- manual tab
+//
+// Isolated too. A failure in the paste form must leave the queue, the bench, the
+// struck list and the run log working, because those are what the dashboard is
+// for and the form is an addition to it.
+try {
 (function () {
   var f = {
     company: document.getElementById('m-company'),
@@ -1647,15 +1674,22 @@ load();
   // The phase strip is driven by the meta lines the server already pushes —
   // "— phase 2/6 seal (node)" — rather than by a second channel that could
   // disagree with the run. Same SSE stream the log below is reading.
+  // NO BACKSLASHES IN THIS STRING, EVER. page() returns a template literal, and a
+  // template literal eats an unrecognized escape: \d becomes d, \/ becomes /.
+  // Written the obvious way, /phase \d+\/\d+/ reached the browser as
+  // /phase d+/d+/ and the casefile regex reached it as an unterminated literal,
+  // which is a PARSE error — so the entire inline script died and the dashboard
+  // rendered its placeholder state with dead tabs. Character classes carry no
+  // backslash and survive the trip.
   window.__manualPhase = function (line) {
     if (f.phases.hidden) return;
-    var m = /phase \d+\/\d+ ([a-z ]+)/i.exec(line);
+    var m = /phase [0-9]+[/][0-9]+ ([a-z ]+)/i.exec(line);
     if (m) {
       var idx = PHASES.indexOf(m[1].trim());
       if (idx >= 0) paintPhases(idx, false);
       return;
     }
-    if (/^\$ node src\/casefile\.js/.test(line)) paintPhases(PHASES.length - 1, false);
+    if (/^[$] node src[/]casefile[.]js/.test(line)) paintPhases(PHASES.length - 1, false);
   };
   window.__manualDone = function (code) {
     if (f.phases.hidden) return;
@@ -1748,12 +1782,22 @@ load();
     }
   });
 })();
+} catch (e) { console.error('manual tab failed to initialise', e); }
 </script>
 </body>
 </html>`;
 }
 
-server.listen(PORT, '127.0.0.1', () => {
-  console.log(`Bottleneck dashboard on http://localhost:${PORT}`);
-  console.log(`  ${readQueue().length} queue rows · ${openSlots(ROOT)} packet slots open · drafts only, never sends`);
-});
+// Listens only when run directly. Importing this file used to bind the port,
+// which is why the dashboard's markup had no test: a suite that binds 3000 fails
+// on a machine where the dashboard is already open. Guarded, page() can be
+// imported and checked, and test/dashboard.test.js does exactly that — it is the
+// test that would have caught the eaten backslash.
+export { page, server };
+
+if (process.argv[1] && pathToFileURL(path.resolve(process.argv[1])).href === import.meta.url) {
+  server.listen(PORT, '127.0.0.1', () => {
+    console.log(`Bottleneck dashboard on http://localhost:${PORT}`);
+    console.log(`  ${readQueue().length} queue rows · ${openSlots(ROOT)} packet slots open · drafts only, never sends`);
+  });
+}
