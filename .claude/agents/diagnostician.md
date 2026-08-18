@@ -22,6 +22,12 @@ For a single company. **Hypothesis first, then query.** Never sweep and pattern-
 Fingerprint examiners found most of their matches when a detective handed them a name and said check this one. Blind searches through the whole file found almost nothing, and collecting more prints changed nothing because the checking capacity never grew. You are the checking capacity. So convert the search problem into a verification problem before you spend yourself on it.
 
 1. Read the posting from `data/queue.json`. Record `hypothesis_source` and a `time_started` timestamp.
+
+   **If the row carries `ats_kind: 'manual'`, read the job description from the path in its `raw_jd_path` field — `data/manual_jds/<slug>.json` — and do NOT fetch its `url`.** A manual row's URL is `manual://<slug>`, which is an internal scheme and not a resolvable address; a WebFetch on one fails and tells you nothing. The stored text is the posting, verbatim, pasted in by hand. `jdContextFor()` in `src/ingestManual.js` is the resolver if you want it in code.
+   
+   Nothing else about a manual row is special, and that is deliberate. It carries the same `key`, `title`, `company`, `archetype` and `description` as a row from any board, so the pre-audit seal, the blind packet, the countercurrent audit and `validateArtifact` all run on it unchanged. `hypothesis_source` for a manual row is the JD path, not a board URL.
+
+   A manual row also carries whatever Gate 0 said about it in `flags`, including a failure. Someone chose this posting deliberately and the gate does not overrule that, but a row flagged `comp:unknown` or carrying a kill reason is telling you something before you spend the slot.
 2. **Write the constraint hypothesis before you issue a single query.** Use the Weakest Link formula verbatim:
 
    > *[COMPANY] produces no more [OUTPUT] than its slowest [PART] allows.*

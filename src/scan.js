@@ -24,6 +24,7 @@ import {
 import { openSlots } from './ledger.js';
 import { shouldSkip, load as loadCase, slugify } from './casefile.js';
 import { delisted, unverifiable, checkUrls } from './liveness.js';
+import { fetchEightyThousandHours } from './sources/eightyThousandHours.js';
 import { auditQueue, purgeAndBackfill, historyCounts, blockedBySeen } from './freshness.js';
 
 const ROOT = path.resolve(import.meta.dirname, '..');
@@ -83,6 +84,32 @@ async function main() {
     } catch (e) {
       errors.push({ company: t.name, ats: t.ats, token: t.token, error: e.message });
       process.stdout.write(`${t.name}: FAILED ${e.message}\n`);
+    }
+  }
+
+  // The aggregator, after the per-company boards. It is not an ATS and not a
+  // company, so it does not come from the registry loop above: one call returns
+  // roles across hundreds of employers. Disable with `sources.eighty_thousand_hours.enabled: false`.
+  //
+  // It cannot raise throughput. The rope promotes at most min(buffer_max,
+  // slots + 5) rows however many were fetched, so this changes what competes for
+  // those slots and never how many there are.
+  const eightyCfg = cfg.sources?.eighty_thousand_hours ?? {};
+  if (eightyCfg.enabled !== false) {
+    try {
+      const r = await fetchEightyThousandHours({
+        maxPages: eightyCfg.max_pages ?? 3,
+        hitsPerPage: eightyCfg.hits_per_page ?? 100,
+        fallbackArchetype: eightyCfg.fallback_archetype ?? 'agentic_startups',
+        fetched: today,
+      });
+      all.push(...r.rows);
+      process.stdout.write(`80,000 Hours: ${r.rows.length} of ${r.nbHits ?? '?'} across ${r.pages} page(s)\n`);
+    } catch (e) {
+      // Same contract as a failed board: recorded, not fatal. A dead aggregator
+      // is a finding, and half one has to survive anything one source does.
+      errors.push({ company: '80,000 Hours', ats: '80000hours', token: 'jobs_prod', error: e.message });
+      process.stdout.write(`80,000 Hours: FAILED ${e.message}\n`);
     }
   }
 
