@@ -54,6 +54,8 @@ src/
   utils/likelihoodRatio.js    apoha. bars evidence that rules nothing out
   blind.js                    countercurrent audit: blind packet, isolation, syllogism
   verifyTrace.js              opens every citation and times it. network, so not a suite
+  diorismos.js                packet criteria registered before drafting, checked after
+  utils/promptAlgebra.js      nine structural operators, and the outreach three-movement form
   utils/latencyGuard.js       what a fetch settles about verify_seconds, and what it does not
 data/                         generated, gitignored
 packets/                      generated, gitignored
@@ -400,7 +402,7 @@ The loop never lets the producing agent certify its own completion. SHIP is a ch
 
 ## 9. Testing
 
-`npm test` runs eleven suites in order, 381 assertions, no network and no model in any of them. That invariant is why the method blank's live run is `npm run blank` and not a suite: a model call inside `npm test` would need the CLI installed, cost money per run, go non-deterministic, and break `bin/run.sh` at 7am. `test/blank.test.js` tests the judge; `npm run blank` applies that same judge to a real diagnostician run.
+`npm test` runs twelve suites in order, 408 assertions, no network and no model in any of them. That invariant is why the method blank's live run is `npm run blank` and not a suite: a model call inside `npm test` would need the CLI installed, cost money per run, go non-deterministic, and break `bin/run.sh` at 7am. `test/blank.test.js` tests the judge; `npm run blank` applies that same judge to a real diagnostician run.
 
 | Suite | Assertions | Covers |
 |---|---|---|
