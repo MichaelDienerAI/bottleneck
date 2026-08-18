@@ -26,6 +26,7 @@
 
 import { validateEvidence, validateAudit, COVERAGE_THRESHOLD, FILING_QUESTIONS } from './utils/schemaValidator.js';
 import { verify as verifySeal } from './integrity.js';
+import { shipSupport } from './utils/likelihoodRatio.js';
 
 // The five keys .claude/schemas/evidence.json owns. The rest of a diagnosis is
 // the wrapper and is deliberately not schema-checked, per TECHNICAL_DESIGN §.
@@ -128,6 +129,23 @@ export function inspectArtifact(doc, { artifact = null, checkSeal = true } = {})
         unanswered: un,
       });
     }
+  }
+
+  // ---- apoha: does anything here rule out the rival explanation?
+  //
+  // Graded, not absolute. A diagnosis that has not reached SHIP is allowed to
+  // rest on non-discriminating rows — that is often exactly why it parked. The
+  // bar bites when the artifact is actually about to become a packet, which is
+  // SHIP plus a passing audit. Below that it reports and does not block, because
+  // failing every PARK on a rule invented after they were written would take the
+  // record offline to enforce it.
+  const support = shipSupport(doc.evidence || []);
+  const shipping = doc.verdict === 'SHIP' && doc.audit?.verdict === 'PASS';
+  if (!support.supported && (doc.evidence || []).length) {
+    note(shipping ? 'error' : 'info', 'LR-FLOOR', support.reason, { barred: support.barred.length });
+  }
+  for (const r of support.barred) {
+    note('info', 'apoha', `LR ${r.likelihood_ratio}: ${r.basis} — "${r.claim}"`);
   }
 
   // ---- pre-audit seal

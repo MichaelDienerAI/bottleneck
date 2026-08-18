@@ -71,9 +71,26 @@ const diagnosis = (over = {}) => ({
   dated: '2026-08-15',
   acquittal: 'EVIDENCE_SUFFICIENT',
   constraint_hypothesis: { weakest_link: 'Testco produces no more X than its slowest Y allows.' },
+  // Claims carry real shape rather than the placeholders 'a' and 'b' they used
+  // to. src/utils/likelihoodRatio.js bars a SHIP whose evidence is as consistent
+  // with ordinary growth as with a bottleneck, and a one-letter claim
+  // discriminates nothing — correctly. One of these rows names a duration, which
+  // is what makes it evidence of a limit rather than of activity.
   evidence: [
-    { claim: 'a', inspectable_at: 'https://example.com/issues/1', verify_seconds: 8, source_class: 'backstage', strength: 5 },
-    { claim: 'b', inspectable_at: 'https://example.com/releases', verify_seconds: 6, source_class: 'backstage', strength: 4 },
+    {
+      claim: 'The oldest open issue on the eval repo has been unresolved 240 days while its reaction count grew to 31.',
+      inspectable_at: 'https://example.com/issues/1',
+      verify_seconds: 8,
+      source_class: 'backstage',
+      strength: 5,
+    },
+    {
+      claim: 'No releases in 94 days on a repo whose prior cadence was every 14 days.',
+      inspectable_at: 'https://example.com/releases',
+      verify_seconds: 6,
+      source_class: 'backstage',
+      strength: 4,
+    },
   ],
   disconfirming: { query_issued: 'did a sandbox exist', result: 'nothing', survived: true },
   proof_match: { asset: 'persona_io', tier: 'sovereign', acts_on_constraint: false },
@@ -656,7 +673,7 @@ t('summary reports each file once', () => {
 // missing fixture.
 function installCli(root) {
   fs.mkdirSync(path.join(root, 'src/utils'), { recursive: true });
-  for (const f of ['casefile.js', 'validateArtifact.js', 'integrity.js', 'utils/schemaValidator.js']) {
+  for (const f of ['casefile.js', 'validateArtifact.js', 'integrity.js', 'utils/schemaValidator.js', 'utils/likelihoodRatio.js']) {
     fs.copyFileSync(path.join(REPO, 'src', f), path.join(root, 'src', f));
   }
   fs.mkdirSync(path.join(root, '.claude'), { recursive: true });

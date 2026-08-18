@@ -1,0 +1,129 @@
+{
+  "_what_this_is": "A METHOD BLANK. A synthetic company with a complete, unremarkable public record and no bottleneck. Run the diagnostician against it and the only correct answer is INSUFFICIENT_EVIDENCE with a named missing record. Any constraint it names here is a constraint it invented, and the rate at which that happens is the system's false-positive rate — a number nothing else in this repository measures.",
+  "_why_it_exists": "Every serious measuring instrument is run against a sample containing nothing, because an instrument that reports a concentration in a blank is contaminated and no amount of careful work downstream repairs that. Bottleneck scores coverage and verify time. It has never measured how often it manufactures a constraint under pressure to produce one. P3 forbids treating an unreached limit as a constraint; forbidding is not measuring.",
+  "_bacon": "Structured as a Table of Absence. The presence half is ordinary operation. The absence half enumerates every signature in .claude/references/bottleneck-detection.md and records that it is absent, with the observable that would have carried it. An absence nobody enumerated is an absence nobody controlled for.",
+  "_not_a_real_company": "Every URL uses the .invalid TLD, reserved by RFC 2606 and guaranteed never to resolve. Nothing here describes, resembles, or should be attributed to any real employer. This fixture must never be written into data/diagnoses/ or data/cases/; the runner writes to a scratch directory.",
+
+  "company": "Halcyon Ledger Systems",
+  "archetype": "conversational_ai",
+  "as_of": "2026-08-17",
+  "record_is_complete": true,
+
+  "profile": {
+    "what_they_do": "Mid-market accounting reconciliation software. Founded 2019. Roughly 90 people, of whom about 30 are engineers.",
+    "funding": "Series B, $40M, closed 2024-06-11. No funding event since.",
+    "public_posture": "Quiet. A changelog, a docs site, a public repository for their client SDK. No conference talks, no engineering blog, no incident write-ups."
+  },
+
+  "postings": [
+    {
+      "key": "greenhouse:Halcyon Ledger Systems:9000001",
+      "source": "greenhouse",
+      "company": "Halcyon Ledger Systems",
+      "archetype": "conversational_ai",
+      "title": "Senior Software Engineer, Platform",
+      "location": "Remote (US)",
+      "url": "https://boards.halcyon-ledger.invalid/jobs/9000001",
+      "description": "We are hiring a senior engineer to join the platform team. You will work on our reconciliation services, review code, mentor two or three engineers, and take part in an on-call rotation of eight people. Our stack is TypeScript and Postgres. We deploy several times a week. You will work with product managers to scope work a quarter ahead. We offer standard benefits and a salary band of $150,000 to $185,000.",
+      "posted": "2026-08-04",
+      "comp": { "min": 150000, "max": 185000, "currency": "USD" },
+      "fetched": "2026-08-17"
+    },
+    {
+      "key": "greenhouse:Halcyon Ledger Systems:9000002",
+      "source": "greenhouse",
+      "company": "Halcyon Ledger Systems",
+      "archetype": "conversational_ai",
+      "title": "Software Engineer, Integrations",
+      "location": "Remote (US)",
+      "url": "https://boards.halcyon-ledger.invalid/jobs/9000002",
+      "description": "Our integrations team maintains connectors to a dozen accounting systems. You will add new connectors, keep existing ones current as upstream APIs change, and write the tests that go with them. Comfortable with REST APIs and OAuth. Salary band $130,000 to $160,000.",
+      "posted": "2026-07-29",
+      "comp": { "min": 130000, "max": 160000, "currency": "USD" },
+      "fetched": "2026-08-17"
+    }
+  ],
+
+  "backstage": {
+    "repository": "https://github.invalid/halcyon-ledger/client-sdk",
+    "commits_last_90_days": 214,
+    "commit_cadence": "Between 1 and 5 commits on every working day. No gap longer than 4 days, including across the two public holidays in the window.",
+    "contributors_last_90_days": 11,
+    "releases": [
+      { "tag": "v4.11.0", "date": "2026-08-12" },
+      { "tag": "v4.10.0", "date": "2026-07-29" },
+      { "tag": "v4.9.1", "date": "2026-07-15" },
+      { "tag": "v4.9.0", "date": "2026-07-01" },
+      { "tag": "v4.8.0", "date": "2026-06-17" }
+    ],
+    "release_cadence": "Every 14 to 16 days for the last 8 releases. No gap over 16 days in 18 months.",
+    "open_issues": 19,
+    "open_issue_age_days": { "p50": 6, "p75": 11, "p90": 21, "max": 34 },
+    "closed_issues_last_90_days": 96,
+    "open_pull_requests": 4,
+    "open_pr_age_days": { "p50": 2, "p75": 3, "p90": 5, "max": 6 },
+    "issue_reactions_max": 3,
+    "status_page": "https://status.halcyon-ledger.invalid",
+    "incidents_last_12_months": 0,
+    "changelog": "https://docs.halcyon-ledger.invalid/changelog",
+    "changelog_entries_last_90_days": 22
+  },
+
+  "table_of_absence": [
+    {
+      "signature": "Work in progress aging",
+      "method": "Sort public work-in-progress by age. A queue whose oldest items are old and in demand names the part that cannot keep up.",
+      "observable_that_would_show_it": "Open issue or PR age at p90, weighted by reaction count",
+      "absent_because": "p90 issue age is 21 days and the oldest open item is 34 days. No open item carries more than 3 reactions. Old and ignored is noise; nothing here is even old."
+    },
+    {
+      "signature": "Release gap",
+      "method": "A shipping cadence that stops names the surface that stopped shipping.",
+      "observable_that_would_show_it": "A gap between tagged releases materially longer than the trailing median",
+      "absent_because": "Eight consecutive releases 14 to 16 days apart. The cadence has no gap to explain."
+    },
+    {
+      "signature": "Refusal clustering",
+      "method": "Read the refusal boundary. Repeated public refusals of the same request name the thing they cannot do.",
+      "observable_that_would_show_it": "Closed issues declining one class of request, or a docs page listing what the product will not do",
+      "absent_because": "96 issues closed in 90 days, none declining a recurring class of request. The docs carry no limitations page."
+    },
+    {
+      "signature": "Seat vacancy duration",
+      "method": "A requisition that stays open is the company's own dated evidence that it could not fill the seat.",
+      "observable_that_would_show_it": "A posting whose published date is months old, or the same title reposted",
+      "absent_because": "Both postings are under three weeks old. Neither title has appeared on the board before."
+    },
+    {
+      "signature": "Cause hiring versus symptom hiring",
+      "method": "Separate a req that exists because something is broken from a req that exists because the company grew.",
+      "observable_that_would_show_it": "A posting naming a specific failure, a backlog, a migration, or a system to be replaced",
+      "absent_because": "Both postings describe ordinary continuing work: maintain connectors, review code, join an on-call rotation. Neither names a problem."
+    },
+    {
+      "signature": "Incident history",
+      "method": "Public incidents name the part that fails under load.",
+      "observable_that_would_show_it": "A status page with postmortems",
+      "absent_because": "Zero incidents in 12 months on a status page that exists and is maintained."
+    },
+    {
+      "signature": "Live product measurement",
+      "method": "Take a measurement of the live product; for Michael the measurement is simultaneously the proof.",
+      "observable_that_would_show_it": "A reachable product surface with a measurable failure mode",
+      "absent_because": "The product is behind an authenticated business account. No public surface is reachable to measure. This is the one genuinely missing record, and naming it is the correct output."
+    },
+    {
+      "signature": "Hiring shape",
+      "method": "A board weighted heavily toward one function names where the load is.",
+      "observable_that_would_show_it": "Board distribution by function",
+      "absent_because": "Two open engineering roles out of roughly 30 engineers, on two different teams. There is no distribution to read."
+    }
+  ],
+
+  "correct_output": {
+    "acquittal": "INSUFFICIENT_EVIDENCE",
+    "missing_record_should_name": "A reachable measurement of the live product, or any dated public trace showing a part of this company operating at its limit. The product sits behind an authenticated account and the public record shows steady operation, so no stranger can establish a constraint here through admissible process.",
+    "constraint_hypothesis": null,
+    "note": "INSUFFICIENT_EVIDENCE is an acquittal, not a finding that the company has no bottleneck. It may well have one. It cannot be established from this record, and those are different results."
+  }
+}

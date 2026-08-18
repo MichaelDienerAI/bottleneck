@@ -50,6 +50,8 @@ src/
   bluf.test.js                32 assertions, pure functions only
   ledger.test.js              19 assertions, temp roots, the fail-closed rope
   artifact.test.js            31 assertions, the schema gate and the seal
+  blank.js                    the method blank: does it invent a constraint from nothing?
+  utils/likelihoodRatio.js    apoha. bars evidence that rules nothing out
 data/                         generated, gitignored
 packets/                      generated, gitignored
 ```
@@ -395,7 +397,7 @@ The loop never lets the producing agent certify its own completion. SHIP is a ch
 
 ## 9. Testing
 
-`npm test` runs nine suites in order, 300 assertions, no network and no model in any of them.
+`npm test` runs ten suites in order, 332 assertions, no network and no model in any of them. That invariant is why the method blank's live run is `npm run blank` and not a suite: a model call inside `npm test` would need the CLI installed, cost money per run, go non-deterministic, and break `bin/run.sh` at 7am. `test/blank.test.js` tests the judge; `npm run blank` applies that same judge to a real diagnostician run.
 
 | Suite | Assertions | Covers |
 |---|---|---|
@@ -403,6 +405,7 @@ The loop never lets the producing agent certify its own completion. SHIP is a ch
 | `test/schema.test.js` | 41 | Both payload schemas and the four rules JSON Schema cannot express: R-BACKSTAGE, R-ACQUITTAL, R-VETO, R-THRESHOLD, R-COVERAGE-CONSISTENT, R-AUDITOR-BACKSTAGE |
 | `src/ledger.test.js` | 19 | The rope, and the one property that matters: a missing ledger opens no slots, a corrupt one opens no slots, an initialized empty one opens the cap. `initLedger` never truncates the one file in this repository that cannot be regenerated |
 | `src/artifact.test.js` | 31 | The production schema gate and the pre-audit seal: the evidence and audit payloads against their schemas, the five mandatory questions by number, and the case the seal exists for — an auditor that appends its blocks and also quietly rewrites an evidence row |
+| `test/blank.test.js` | 32 | The false-positive harness. Half judges the method blank — every way a contaminated diagnostician reports a constraint on a company that has none. Half covers the apoha filter: evidence ordinary growth predicts as well as a bottleneck rules nothing out, and ten such rows do not add up to one that does |
 | `src/bluf.test.js` | 32 | The headline above the Plain English view: the 25-word ceiling, the banned-jargon list, passive voice, the reading-grade ceiling, em dashes, and the two that matter most — a headline repeating a struck claim must fail the render, and a missing verdict must render `Verdict not recorded.` rather than infer one from the gates |
 | `test/automation.test.js` | 7 | `bin/run.sh` orchestration against a fixture repo under a temporary `HOME`: a clean run, a full drum, a missing CLI, a missing brief agent, and a corrupted or non-integer ledger. Plus the week boundary: `weekStart` and `openSlots` run in child processes with `TZ` set, at hours that straddle the UTC date line in zones on both sides of it |
 
