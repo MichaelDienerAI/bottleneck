@@ -19,7 +19,7 @@
     "board": "node src/report.js",
     "brief": "node src/renderBrief.js",
     "bluf": "node src/bluf.js",
-    "test": "node src/gates.test.js && node src/casefile.test.js && node src/queue.test.js && node src/bluf.test.js && node src/ledger.test.js && node src/artifact.test.js && node test/blank.test.js && node test/auditor-blind.test.js && node test/algebra.test.js && node test/eightyThousandHours.test.js && node test/ingestManual.test.js && node test/schema.test.js && node test/automation.test.js && node test/liveness.test.js",
+    "test": "node src/gates.test.js && node src/casefile.test.js && node src/queue.test.js && node src/bluf.test.js && node src/ledger.test.js && node src/artifact.test.js && node test/blank.test.js && node test/auditor-blind.test.js && node test/algebra.test.js && node test/eightyThousandHours.test.js && node test/ingestManual.test.js && node test/server-manual-route.test.js && node test/schema.test.js && node test/automation.test.js && node test/liveness.test.js",
     "case": "node src/casefile.js",
     "walk": "node src/walkthrough.js",
     "blank": "node src/blank.js",

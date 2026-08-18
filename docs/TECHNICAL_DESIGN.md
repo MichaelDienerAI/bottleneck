@@ -34,6 +34,7 @@ src/
   sources.js                  ATS fetchers, one output shape
   sources/eightyThousandHours.js  the 80,000 Hours aggregator, via its published index
   ingestManual.js             paste a JD straight into the buffer
+  manualRoute.js              the guards on the dashboard manual routes, pure
   gates.js                    Gate 0 and ranking, pure functions
   casefile.js                 per-company persistent state
   scan.js                     sourcing CLI, plus the --audit-freshness pass
@@ -404,7 +405,7 @@ The loop never lets the producing agent certify its own completion. SHIP is a ch
 
 ## 9. Testing
 
-`npm test` runs fourteen suites in order, 437 assertions, no network and no model in any of them. That invariant is why the method blank's live run is `npm run blank` and not a suite: a model call inside `npm test` would need the CLI installed, cost money per run, go non-deterministic, and break `bin/run.sh` at 7am. `test/blank.test.js` tests the judge; `npm run blank` applies that same judge to a real diagnostician run.
+`npm test` runs fifteen suites in order, 454 assertions, no network and no model in any of them. That invariant is why the method blank's live run is `npm run blank` and not a suite: a model call inside `npm test` would need the CLI installed, cost money per run, go non-deterministic, and break `bin/run.sh` at 7am. `test/blank.test.js` tests the judge; `npm run blank` applies that same judge to a real diagnostician run.
 
 | Suite | Assertions | Covers |
 |---|---|---|

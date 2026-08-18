@@ -31,6 +31,10 @@ import { compositeScore } from './src/gates.js';
 import { strikeRow, strikeRecord, eligibleBackfill, pickBackfill } from './src/queue.js';
 import { inspectArtifact } from './src/validateArtifact.js';
 import { seal, sealPathFor } from './src/integrity.js';
+import os from 'node:os';
+import { buildBlindPacket, assertBlind, parseBriefObservables, packetDigest } from './src/blind.js';
+import { planIngest, ingest, slugify as slug2 } from './src/ingestManual.js';
+import { decideIngest, decideDiagnose, PHASE_LABELS } from './src/manualRoute.js';
 
 const ROOT = path.resolve(import.meta.dirname);
 const PORT = Number(process.env.PORT || 3000);
@@ -411,17 +415,48 @@ const PHASES = {
         `Do not audit it and do not append an audit block: a separate pass does that, and it has to be a separate pass.`,
     },
     { kind: 'node', label: 'seal', run: sealStep },
+    { kind: 'node', label: 'blind packet', run: blindPacketStep },
     {
+      // PHASE 1, BLIND. cwd is the scratch directory, which holds the packet and
+      // a symlink to .claude and nothing else. data/diagnoses/ is not on the
+      // path, so the diagnosis is not reachable by a relative read. A model with
+      // an absolute path could still get there, which is why the hypothesis is
+      // written and hashed here: a phase-1 sentence that quotes the diagnosis is
+      // visible afterward even though nothing prevented it.
       kind: 'agent',
-      label: 'auditor',
+      label: 'blind audit',
+      agent: 'auditor',
+      tools: 'Read,Write,WebFetch,WebSearch',
+      turns: '20',
+      cwd: (job) => job.ctx.blindDir,
+      prompt: (company, ctx) =>
+        `PHASE 1 OF 2, BLIND. Read ./observables.json. It carries the raw observables and the posting for ${company} ` +
+        `and nothing else. A diagnosis for this company exists and you may not read it in this phase; it is not in ` +
+        `this directory and you must not go looking for it.\n\n` +
+        `Form ONE constraint hypothesis of your own from this material, using the Weakest Link formula. You may ` +
+        `search the public record for more observables. You may not form it by guessing what someone else concluded.\n\n` +
+        `Write ./blind.json: {"hypothesis": "<one sentence>", "sources": ["<url>", ...], "reasoning": "<short>"}. ` +
+        `sources are the observable URLs the hypothesis rests on. Write nothing else, anywhere.`,
+    },
+    {
+      // PHASE 2, COLLISION. Back in the repository, with both sentences in hand.
+      kind: 'agent',
+      label: 'collision audit',
       agent: 'auditor',
       tools: 'Read,Write,WebFetch',
       turns: '30',
       prompt: (company, ctx) =>
-        `Audit the diagnosis for ${company} at ${ctx.artifact}. Append the audit block and the strike log. ` +
-        `Copy diagnostician_digest verbatim from ${ctx.seal}; do not compute it yourself. ` +
-        `Change nothing else in the file — the digest in that sidecar was taken before you were called, and ` +
-        `an edit to the diagnostician's half fails the artifact at the recorder and at the renderer.`,
+        `PHASE 2 OF 2. Your blind hypothesis for ${company} is in ${ctx.blindOut}, formed before you read anything ` +
+        `the diagnostician wrote. Now open ${ctx.artifact} and audit it as you normally would.\n\n` +
+        `Append the audit block and the strike log. Carry blind_phase (hypothesis, sources, packet_digest ` +
+        `${ctx.packetDigest}) and collision.\n\n` +
+        `collision.agreement is "corroborated" when both passes named the same binding part from opposite ` +
+        `directions, "diverged" otherwise. A divergence requires collision.syllogism: major, minor, middle_term, ` +
+        `conclusion. The middle term must appear in both premises and must NOT appear in the conclusion — that is ` +
+        `what makes it the middle, and src/blind.js checks the form.\n\n` +
+        `Cite at least one backstage trace the diagnostician did not. A row you re-cite from their evidence is ` +
+        `struck unless you name an independent_source for reaching it.\n\n` +
+        `Copy diagnostician_digest verbatim from ${ctx.seal}. Change nothing the diagnostician wrote.`,
     },
     { kind: 'node', label: 'verify', run: verifyStep },
   ],
@@ -463,7 +498,7 @@ function runPhases(job, phases, i) {
 
   let child;
   try {
-    child = spawn(CLAUDE_BIN, agentArgs({ ...phase, prompt }), { cwd: ROOT, env: process.env });
+    child = spawn(CLAUDE_BIN, agentArgs({ ...phase, prompt }), { cwd: phase.cwd ? phase.cwd(job) : ROOT, env: process.env });
   } catch (err) {
     push(job, 'stderr', `could not start ${CLAUDE_BIN}: ${err.message}`);
     return finish(job, 127);
@@ -507,8 +542,72 @@ function sealStep(job) {
   }
 }
 
+// Builds the blind packet and the scratch directory phase 1 runs inside.
+//
+// The directory holds the packet and a symlink to .claude so `--agent auditor`
+// resolves. It deliberately does NOT hold data/, so the diagnosis is not
+// reachable by any relative path. assertBlind refuses to write a packet carrying
+// anything the diagnostician concluded, so a leak fails here rather than
+// producing an audit whose agreement means nothing.
+function blindPacketStep(job) {
+  const row = readQueue().find((j) => j.company === job.company);
+  if (!row) {
+    push(job, 'stderr', `${job.company} is no longer a row in data/queue.json. Cannot build a blind packet.`);
+    return false;
+  }
+
+  // Newest brief that names this company. Absent is not fatal: the posting alone
+  // is a thin but honest blind record, and the packet says which it got.
+  let observables = [];
+  let briefFile = null;
+  const briefDir = path.join(ROOT, 'data/briefs');
+  if (fs.existsSync(briefDir)) {
+    for (const f of fs.readdirSync(briefDir).filter((x) => x.endsWith('.md')).sort().reverse()) {
+      const rows = parseBriefObservables(fs.readFileSync(path.join(briefDir, f), 'utf8'), job.company);
+      if (rows.length) {
+        observables = rows;
+        briefFile = `data/briefs/${f}`;
+        break;
+      }
+    }
+  }
+
+  const packet = buildBlindPacket({
+    company: job.company,
+    role: row.title ?? null,
+    dated: localToday(),
+    posting: row,
+    observables,
+    brief: briefFile,
+  });
+
+  try {
+    assertBlind(packet);
+  } catch (err) {
+    push(job, 'stderr', err.message);
+    return false;
+  }
+
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'bottleneck-blind-'));
+  fs.writeFileSync(path.join(dir, 'observables.json'), JSON.stringify(packet, null, 2) + '\n');
+  fs.symlinkSync(path.join(ROOT, '.claude'), path.join(dir, '.claude'));
+
+  job.ctx.blindDir = dir;
+  job.ctx.blindOut = path.join(dir, 'blind.json');
+  job.ctx.packetDigest = packetDigest(packet);
+
+  push(job, 'stdout', `blind packet: ${observables.length} observables${briefFile ? ` from ${briefFile}` : ', posting only'}`);
+  push(job, 'stdout', `  ${dir} — holds the packet and .claude, and no diagnosis`);
+  push(job, 'stdout', `  digest ${job.ctx.packetDigest}`);
+  return true;
+}
+
 // Recompute, compare, then run the schema gate. gateArtifact does both halves.
 function verifyStep(job) {
+  if (job.ctx.blindOut && !fs.existsSync(job.ctx.blindOut)) {
+    push(job, 'stderr', 'phase 1 wrote no blind.json. There is no independent hypothesis to have collided with.');
+    return false;
+  }
   return gateArtifact(job);
 }
 
@@ -839,6 +938,92 @@ const server = http.createServer((req, res) => {
     return;
   }
 
+  // Manual ingestion, and manual ingestion followed by a diagnosis.
+  //
+  // Two routes rather than one because they cost different things. Ingest adds a
+  // row and spends nothing; diagnose spends a drum slot, which is the constraint
+  // the entire system is arranged around. The guards live in src/manualRoute.js,
+  // pure and tested, because "may this click spend the constraint" is the part
+  // worth getting right.
+  //
+  // Neither reimplements the pipeline. Ingest calls the same planIngest/ingest
+  // used by `npm run ingest:jd`, and diagnose then calls startJob, which runs the
+  // identical six-phase split: diagnostician, seal, blind packet, blind audit,
+  // collision audit, verify, then the recorder and the renderer. The manual row
+  // is shaped like every other queue row, so none of those phases needs to know
+  // where it came from.
+  if (req.method === 'POST' && (u.pathname === '/api/ingest-jd' || u.pathname === '/api/manual/diagnose')) {
+    const wantsDiagnosis = u.pathname === '/api/manual/diagnose';
+    let raw = '';
+    req.on('data', (c) => {
+      raw += c;
+      // A pasted job description is the one body on this server that is
+      // legitimately large. The other routes cap at 4KB.
+      if (raw.length > 512 * 1024) req.destroy();
+    });
+    req.on('end', () => {
+      let body;
+      try {
+        body = JSON.parse(raw || '{}');
+      } catch {
+        return json(res, 400, { error: 'bad json' });
+      }
+
+      const cfg = readYaml('profile/gates.yaml') || readYaml('profile/gates.example.yaml') || {};
+      const queue = readQueue();
+      const slug = slug2(body.company);
+      const ctx = {
+        running: Boolean(current && !current.done),
+        runningCompany: current && !current.done ? current.company : null,
+        slots: openSlots(ROOT, cfg),
+        bufferLength: queue.length,
+        bufferMax: cfg.drum?.buffer_max ?? 10,
+        existingKey: queue.some((r) => r.key === `manual:${String(body.company ?? '').trim()}:${slug}`),
+      };
+
+      const decision = wantsDiagnosis ? decideDiagnose(body, ctx) : decideIngest(body, ctx);
+      if (!decision.ok) return json(res, decision.status, decision.body);
+
+      // Gate 0 runs and reports; it does not veto. Someone chose this posting.
+      const plan = planIngest({
+        company: String(body.company).trim(),
+        role: String(body.role_title).trim(),
+        url: body.url ? String(body.url).trim() : null,
+        text: String(body.jd_text),
+        queue,
+        cfg,
+      });
+      if (!plan.ok) return json(res, 400, { error: plan.problems.join(' ') });
+
+      let written;
+      try {
+        written = ingest(plan, { root: ROOT });
+      } catch (err) {
+        return json(res, 500, { error: `could not write the JD: ${err.message}` });
+      }
+
+      const ingested = {
+        company: plan.row.company,
+        title: plan.row.title,
+        key: plan.row.key,
+        jd: written.jdPath,
+        replaced: written.replaced,
+        buffer: written.queueLength,
+        archetype: plan.row.archetype,
+        fit: plan.row.fit,
+        gate: { pass: plan.gate.pass, reasons: plan.gate.reasons, flags: plan.row.flags ?? [] },
+      };
+
+      if (!wantsDiagnosis) return json(res, 200, { ingested });
+
+      // The log lines and the completion event arrive on /api/stream, which the
+      // page is already listening to. Nothing new streams here.
+      const job = startJob('diagnose', plan.row.company);
+      return json(res, 200, { ingested, job: jobView(job), phases: PHASE_LABELS });
+    });
+    return;
+  }
+
   // Close a company as DEAD. The other half of the no-progress rule.
   //
   // recordVisit raises a flag and stops there, because two visits surfacing the
@@ -1004,6 +1189,41 @@ button.act.danger:hover:not(:disabled) { background:var(--accent); color:#fff; }
 .bench .meta { font-family:var(--mono); font-size:10.5px; letter-spacing:0.06em;
                text-transform:uppercase; color:var(--muted); flex:none; }
 .empty { border:1px dashed var(--rule); padding:14px 15px; color:var(--muted); font-size:13.5px; }
+
+/* Tabs. The run log and the report viewer sit BELOW both panels and are shared:
+   a manual diagnosis streams into the same log and renders into the same iframe
+   as one started from a card, because it is the same job running the same six
+   phases. Duplicating them would be two components that can disagree. */
+.tabs { display:flex; gap:0; margin:26px 0 20px; border-bottom:1px solid var(--rule); }
+.tab { font-family:var(--mono); font-size:11px; font-weight:600; letter-spacing:0.1em;
+       text-transform:uppercase; padding:11px 18px; background:transparent; color:var(--muted);
+       border:0; border-bottom:2px solid transparent; margin-bottom:-1px; }
+.tab[aria-selected="true"] { color:var(--ink); border-bottom-color:var(--accent); }
+.tabpanel[hidden] { display:none; }
+
+form#mform label { display:block; font-family:var(--mono); font-size:10.5px; letter-spacing:0.09em;
+                   text-transform:uppercase; color:var(--muted); margin:0 0 14px; }
+form#mform input, form#mform textarea {
+  display:block; width:100%; margin-top:6px; padding:9px 11px; font:inherit; font-size:14px;
+  color:var(--ink); background:#fff; border:1px solid var(--rule); border-radius:0;
+  text-transform:none; letter-spacing:0;
+}
+form#mform textarea { font-family:var(--mono); font-size:12.5px; line-height:1.5; resize:vertical; }
+form#mform input:focus, form#mform textarea:focus { outline:2px solid var(--accent); outline-offset:-2px; }
+.frow { display:grid; grid-template-columns:1fr 1fr; gap:0 18px; }
+@media (max-width:700px) { .frow { grid-template-columns:1fr; } }
+.mactions { display:flex; align-items:center; gap:12px; margin-top:16px; flex-wrap:wrap; }
+.act.primary { border-color:var(--ink); background:var(--ink); color:#fff; }
+.act.primary:disabled { opacity:0.45; }
+
+/* Phase strip. Mirrors PHASES.diagnose in this file rather than describing it,
+   so the dashboard cannot show a pipeline the server is not running. */
+.phases { display:flex; flex-wrap:wrap; gap:8px; margin:18px 0 0; }
+.phase { font-family:var(--mono); font-size:10px; letter-spacing:0.08em; text-transform:uppercase;
+         padding:5px 9px; border:1px solid var(--rule); color:var(--muted); }
+.phase.now { border-color:var(--accent); color:var(--accent); font-weight:600; }
+.phase.done { border-color:var(--ink); color:var(--ink); }
+.phase.failed { border-color:var(--ink); background:var(--ink); color:#fff; }
 </style>
 </head>
 <body>
@@ -1027,6 +1247,42 @@ button.act.danger:hover:not(:disabled) { background:var(--accent); color:#fff; }
   and nothing else. No mail client, no ATS, no posting. The send stays yours, somewhere else.
 </div>
 
+<div class="tabs" role="tablist" aria-label="Dashboard view">
+  <button class="tab" type="button" role="tab" data-tab="board" aria-selected="true">Queue &amp; Board</button>
+  <button class="tab" type="button" role="tab" data-tab="manual" aria-selected="false">Manual Diagnosis</button>
+</div>
+
+<section id="tab-manual" class="tabpanel" hidden>
+  <h2>Paste a job description</h2>
+  <p class="muted" style="margin:-4px 0 16px;font-size:13.5px">
+    A role you found yourself, put straight in front of the drum. The description is stored verbatim in
+    <span class="mono">data/manual_jds/</span> and the diagnostician reads it there rather than fetching, because a
+    manual row's URL is an internal scheme and not an address. Everything after that is identical to a board row:
+    the same Gate 0, the same pre-audit seal, the same blind and collision audit passes, the same schema gate.
+  </p>
+
+  <form id="mform" autocomplete="off">
+    <div class="frow">
+      <label>Company<input id="m-company" type="text" placeholder="Anthropic" required></label>
+      <label>Role title<input id="m-role" type="text" placeholder="Research Engineer, Evals" required></label>
+    </div>
+    <label>Source URL <span class="muted">optional</span><input id="m-url" type="url" placeholder="https://..."></label>
+    <label>Job description<textarea id="m-jd" rows="14" placeholder="Paste the whole posting." required></textarea></label>
+    <p class="muted" id="m-count" style="margin:6px 0 0;font-size:12.5px">0 characters</p>
+
+    <div class="mactions">
+      <button class="act" type="button" id="m-ingest">Ingest only</button>
+      <button class="act primary" type="button" id="m-diagnose">Diagnose &amp; report</button>
+      <span class="muted" id="m-note" style="font-size:12.5px"></span>
+    </div>
+  </form>
+
+  <div id="m-phases" class="phases" hidden></div>
+  <p id="m-result" class="muted" style="margin:14px 0 0"></p>
+</section>
+
+<section id="tab-board" class="tabpanel">
+
 <h2>Queue <span id="queuecount" class="muted" style="text-transform:none;letter-spacing:0"></span></h2>
 <div class="cards" id="cards"></div>
 
@@ -1043,6 +1299,8 @@ button.act.danger:hover:not(:disabled) { background:var(--accent); color:#fff; }
   A struck row never returns on its own — not from a backfill and not from the next scan.
 </p>
 <ul class="bench" id="struck"></ul>
+
+</section>
 
 <h2>Run log</h2>
 <details id="log" open>
@@ -1215,6 +1473,10 @@ document.querySelectorAll('#viewseg button').forEach(b => {
   b.onclick = () => { viewerView = b.dataset.view; loadViewer(); };
 });
 
+// The manual tab renders its finished report into this same viewer. One viewer,
+// one plain/audit toggle, one place a brief is ever displayed.
+window.__openReport = (rel, company) => show(rel, company, []);
+
 async function run(action, company, alreadyToday) {
   if (action === 'diagnose') {
     const warn = alreadyToday
@@ -1315,15 +1577,177 @@ es.addEventListener('start', (e) => {
   running = true;
   load();
 });
-es.addEventListener('line', (e) => line(JSON.parse(e.data)));
-es.addEventListener('done', () => {
+es.addEventListener('line', (e) => {
+  const l = JSON.parse(e.data);
+  line(l);
+  // The manual tab's phase strip reads the same lines the log does, rather than
+  // a second channel that could disagree with the run it is describing.
+  if (window.__manualPhase) window.__manualPhase(l.line || '');
+});
+es.addEventListener('done', (e) => {
   running = false;
   const sum = document.getElementById('logsum');
   sum.textContent = sum.textContent.replace('Running', 'Finished');
+  let code = 0;
+  try { code = JSON.parse(e.data).code; } catch (err) {}
+  if (window.__manualDone) window.__manualDone(code);
   load();
 });
 
 load();
+
+// ---------------------------------------------------------------- tabs
+(function () {
+  var tabs = [].slice.call(document.querySelectorAll('.tab'));
+  function show(name) {
+    tabs.forEach(function (t) { t.setAttribute('aria-selected', String(t.dataset.tab === name)); });
+    document.getElementById('tab-board').hidden = name !== 'board';
+    document.getElementById('tab-manual').hidden = name !== 'manual';
+    try { localStorage.setItem('bottleneck:tab', name); } catch (e) {}
+  }
+  tabs.forEach(function (t) { t.addEventListener('click', function () { show(t.dataset.tab); }); });
+  var want = null;
+  try { want = localStorage.getItem('bottleneck:tab'); } catch (e) {}
+  if (want) show(want);
+})();
+
+// ---------------------------------------------------------------- manual tab
+(function () {
+  var f = {
+    company: document.getElementById('m-company'),
+    role: document.getElementById('m-role'),
+    url: document.getElementById('m-url'),
+    jd: document.getElementById('m-jd'),
+    count: document.getElementById('m-count'),
+    note: document.getElementById('m-note'),
+    result: document.getElementById('m-result'),
+    phases: document.getElementById('m-phases'),
+    ingest: document.getElementById('m-ingest'),
+    diagnose: document.getElementById('m-diagnose')
+  };
+  if (!f.company) return;
+
+  var PHASES = ['ingesting', 'diagnostician', 'seal', 'blind packet', 'blind audit', 'collision audit', 'verify', 'recording'];
+
+  f.jd.addEventListener('input', function () {
+    f.count.textContent = f.jd.value.length.toLocaleString() + ' characters';
+  });
+
+  function paintPhases(current, failed) {
+    f.phases.hidden = false;
+    f.phases.innerHTML = PHASES.map(function (p, i) {
+      var cls = 'phase';
+      if (failed && i === current) cls += ' failed';
+      else if (i < current) cls += ' done';
+      else if (i === current) cls += ' now';
+      return '<span class="' + cls + '">' + p + '</span>';
+    }).join('');
+  }
+
+  // The phase strip is driven by the meta lines the server already pushes —
+  // "— phase 2/6 seal (node)" — rather than by a second channel that could
+  // disagree with the run. Same SSE stream the log below is reading.
+  window.__manualPhase = function (line) {
+    if (f.phases.hidden) return;
+    var m = /phase \d+\/\d+ ([a-z ]+)/i.exec(line);
+    if (m) {
+      var idx = PHASES.indexOf(m[1].trim());
+      if (idx >= 0) paintPhases(idx, false);
+      return;
+    }
+    if (/^\$ node src\/casefile\.js/.test(line)) paintPhases(PHASES.length - 1, false);
+  };
+  window.__manualDone = function (code) {
+    if (f.phases.hidden) return;
+    paintPhases(code === 0 ? PHASES.length : PHASES.indexOf('verify'), code !== 0);
+    busy(false);
+    if (code === 0) {
+      f.result.innerHTML = 'Done. The rendered brief is in the Report panel below, with the BLUF at the top of its Plain English view.';
+      var company = f.company.value.trim();
+      fetch('/api/state').then(function (r) { return r.json(); }).then(function (s) {
+        var row = (s.rows || []).find(function (x) { return x.company === company; });
+        if (row && row.report && window.__openReport) window.__openReport(row.report, company);
+      });
+    } else {
+      f.result.textContent = 'The run exited ' + code + '. The log above says where it stopped; nothing downstream ran.';
+    }
+  };
+
+  function busy(on) {
+    f.ingest.disabled = on;
+    f.diagnose.disabled = on;
+    f.note.textContent = on ? 'running…' : '';
+  }
+
+  function payload(extra) {
+    return Object.assign({
+      company: f.company.value.trim(),
+      role_title: f.role.value.trim(),
+      url: f.url.value.trim() || null,
+      jd_text: f.jd.value
+    }, extra || {});
+  }
+
+  function post(path, extra) {
+    return fetch(path, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(payload(extra))
+    }).then(function (r) { return r.json().then(function (b) { return { status: r.status, body: b }; }); });
+  }
+
+  function describeIngest(i) {
+    var bits = [(i.replaced ? 'Replaced' : 'Ingested') + ' ' + i.company + ' — ' + i.title,
+                'stored verbatim at ' + i.jd,
+                'buffer now ' + i.buffer,
+                'archetype ' + i.archetype + ', fit ' + i.fit];
+    if (!i.gate.pass) bits.push('Gate 0 FAILS: ' + i.gate.reasons.join('; ') + ' — ingested anyway, you chose this posting');
+    else if (i.gate.flags.length) bits.push('flags: ' + i.gate.flags.join(', '));
+    return bits.join(' · ');
+  }
+
+  f.ingest.addEventListener('click', function () {
+    busy(true);
+    f.phases.hidden = true;
+    post('/api/ingest-jd').then(function (r) {
+      busy(false);
+      if (r.status === 428) {
+        if (!confirm('A row for ' + r.body.replaces + ' is already in the buffer. Replace it?')) return;
+        return post('/api/ingest-jd', { confirm: true }).then(function (r2) {
+          f.result.textContent = r2.status === 200 ? describeIngest(r2.body.ingested) : r2.body.error;
+        });
+      }
+      f.result.textContent = r.status === 200 ? describeIngest(r.body.ingested) : (r.body.error + (r.body.hint ? ' ' + r.body.hint : ''));
+    });
+  });
+
+  f.diagnose.addEventListener('click', function () {
+    busy(true);
+    post('/api/manual/diagnose').then(function (r) {
+      if (r.status === 428) {
+        busy(false);
+        var msg = 'This spends a drum slot on ' + r.body.company + '. ' + r.body.slots_after + ' would be left this week.';
+        if (!confirm(msg)) return;
+        busy(true);
+        return post('/api/manual/diagnose', { confirm: true }).then(start);
+      }
+      return start(r);
+    });
+
+    function start(r) {
+      if (!r || r.status !== 200) {
+        busy(false);
+        f.phases.hidden = true;
+        if (r) f.result.textContent = r.body.error + (r.body.hint ? ' ' + r.body.hint : '');
+        return;
+      }
+      f.result.textContent = describeIngest(r.body.ingested) + ' — diagnosing now.';
+      paintPhases(1, false);
+      var d = document.getElementById('log');
+      if (d) d.open = true;
+    }
+  });
+})();
 </script>
 </body>
 </html>`;
