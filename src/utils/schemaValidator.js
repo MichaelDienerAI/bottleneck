@@ -189,6 +189,117 @@ export function assertBackstagePresent(items, at) {
   );
 }
 
+// R-PRAMANA-INTEGRITY.
+//
+// The schema carried strength 1-5, which says how sure, and nothing that said
+// HOW. Those are different axes and collapsing them is how a confident reading of
+// a press release ends up outranking a hesitant reading of a commit log. Indian
+// epistemology keeps them apart: pratyaksa is perception, sabda is testimony,
+// anumana is inference through a stated pervasion, and a claim's means of
+// knowledge is a property of the claim rather than of the claimant's confidence.
+//
+// Four classes, and the rule is about what each may carry:
+//
+//   DIRECT_OBSERVABLE   read off a machine. a commit, raw JSON, an outage log
+//   TESTIMONY           an account of itself. copy, a release, the posting
+//   INFERRED_RELATION   drawn from an observable through a named invariant
+//   HYPOTHETICAL        a suspicion, carried for the record, supporting nothing
+export const PRAMANA_CLASSES = ['DIRECT_OBSERVABLE', 'TESTIMONY', 'INFERRED_RELATION', 'HYPOTHETICAL'];
+
+// Artifacts written on or after this date must declare the class. Before it, the
+// class is derived from source_class and reported as derived rather than
+// asserted. 120 evidence rows existed when the field was introduced and none
+// carried it; requiring it retroactively would have failed every artifact in the
+// corpus at the renderer and the recorder, and backfilling would have written a
+// provenance claim nobody made — DIRECT_OBSERVABLE onto rows that may be
+// inferences, which is worse than absent because it is confident.
+export const PRAMANA_REQUIRED_FROM = '2026-08-18';
+
+// The derivation, used only for rows that predate the requirement. Deliberately
+// coarse: it can separate a machine trace from an account of itself, which is
+// what source_class already encoded. It cannot recognize an inference, so it
+// never returns INFERRED_RELATION. A row that is really an inference reads here
+// as DIRECT_OBSERVABLE and the report says the class was derived, not declared.
+export const derivePramana = (row) =>
+  row?.source_class === 'backstage' ? 'DIRECT_OBSERVABLE' : 'TESTIMONY';
+
+export const pramanaOf = (row) => ({
+  pramana: row?.pramana_class || derivePramana(row),
+  declared: Boolean(row?.pramana_class),
+});
+
+// Two tiers, and the split is about what a derivation can honestly settle.
+//
+// ALWAYS ENFORCED: the DIRECT_OBSERVABLE floor, and vyapti on any row that
+// declares itself an inference. Both are satisfiable from what the corpus already
+// says — source_class separates a machine trace from an account of itself, which
+// is exactly the distinction the floor needs.
+//
+// ENFORCED FROM THE CUTOVER: the declaration itself, and the rule that testimony
+// is admissible only as a labeled leak. Both require a judgment the author has to
+// have made. The second is materially STRICTER than R-BACKSTAGE, which permits
+// unlabeled frontstage rows alongside a backstage one — six of the eleven
+// artifacts on disk carry such rows. Applying it retroactively would fail them at
+// the renderer and the recorder, so before the cutover it is reported by
+// src/validateArtifact.js and not thrown. The tightening is real and it lands on
+// what gets written next, not on what was written under the older rule.
+export function pramanaFindings(items, at, { dated = null } = {}) {
+  const rows = items || [];
+  const requiresDeclaration = Boolean(dated) && String(dated) >= PRAMANA_REQUIRED_FROM;
+  const deferred = [];
+
+  rows.forEach((row, i) => {
+    const { pramana, declared } = pramanaOf(row);
+
+    if (!declared) {
+      const msg =
+        `${at}[${i}]: pramana_class is not declared, so it was derived from source_class as ${pramana}. ` +
+        `Required on artifacts dated ${PRAMANA_REQUIRED_FROM} or later: say how this row is known, not only how strongly.`;
+      if (requiresDeclaration) assert.ok(false, msg);
+      else deferred.push(msg);
+    }
+
+    // An inference with no stated pervasion is an assertion with a longer
+    // sentence in front of it. Naming the invariant is what lets a stranger
+    // attack the invariant instead of the conclusion. Only fires on a row that
+    // declared itself an inference, so no derived row can trip it.
+    if (pramana === 'INFERRED_RELATION') {
+      assert.ok(
+        typeof row.vyapti === 'string' && row.vyapti.trim().length > 0,
+        `${at}[${i}]: INFERRED_RELATION requires vyapti naming the invariant that licenses the inference.`
+      );
+    }
+
+    // Testimony is a company's account of itself. It becomes admissible exactly
+    // where its control of that account failed, which is the same exception
+    // R-BACKSTAGE already carves and for the same reason.
+    if (pramana === 'TESTIMONY' && row.specificity_leak !== true) {
+      const msg =
+        `${at}[${i}]: TESTIMONY is admissible only on a row flagged specificity_leak: true. ` +
+        `A company's own account of itself corroborates nothing unless it says something it would not have chosen to say.`;
+      if (requiresDeclaration) assert.ok(false, msg);
+      else deferred.push(msg);
+    }
+  });
+
+  // Always. A sufficiency claim resting entirely on accounts-of-self is the
+  // failure R-BACKSTAGE exists for, stated in the vocabulary of how rather than
+  // of where.
+  const direct = rows.filter((r) => pramanaOf(r).pramana === 'DIRECT_OBSERVABLE');
+  assert.ok(
+    direct.length > 0,
+    `${at}: no DIRECT_OBSERVABLE row. Claiming sufficiency requires at least one thing a stranger reads off a ` +
+      `machine rather than off an account of itself.`
+  );
+
+  return deferred;
+}
+
+// Throwing form, for callers that want the assertion rather than the report.
+export function assertPramanaIntegrity(items, at, opts = {}) {
+  return pramanaFindings(items, at, opts);
+}
+
 export function validateEvidence(payload) {
   validate('evidence.json', payload);
 
@@ -207,6 +318,10 @@ export function validateEvidence(payload) {
       'or the acquittal is INSUFFICIENT_EVIDENCE with a named missing_record.'
   );
   assertBackstagePresent(payload.evidence, 'evidence');
+  // Returns the findings deferred by the cutover so the caller can report them.
+  // validateEvidence keeps its contract of returning the payload; the deferred
+  // list is read by src/validateArtifact.js through pramanaFindings directly.
+  assertPramanaIntegrity(payload.evidence, 'evidence', { dated: payload.dated });
   return payload;
 }
 

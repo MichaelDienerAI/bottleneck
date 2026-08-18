@@ -47,9 +47,24 @@
           "description": "An absolute URL a stranger can open without contacting anyone. A bare repo path is not inspectable by a stranger, so repo evidence must be written as a full blob or commit URL."
         },
         "verify_seconds": {
-          "type": "number",
+          "type": "integer",
           "minimum": 0,
-          "description": "How long verification takes. The auditor passes anything verifiable in ten seconds; filing-standard question 10 vetoes anything over sixty. The threshold is the auditor's judgment, not this schema's, so only the measurement is required here."
+          "description": "How long verification takes, in whole seconds. The auditor passes anything verifiable in ten seconds; filing-standard question 10 vetoes anything over sixty. The threshold is the auditor's judgment, not this schema's, so only the measurement is required here. src/utils/latencyGuard.js measures the fetch time to inspectable_at and can prove this number impossible, never prove it right: a fetch is a floor, and reading the page is the part that takes the time."
+        },
+        "pramana_class": {
+          "enum": ["DIRECT_OBSERVABLE", "TESTIMONY", "INFERRED_RELATION", "HYPOTHETICAL"],
+          "description": "How this row is known, not how strongly. Indian epistemology separates the means of knowledge from the confidence in it, and this repository had only the second: strength 1-5 says how sure, and nothing said how. DIRECT_OBSERVABLE is a thing a stranger reads off a machine — a commit, raw API JSON, a status-page outage. TESTIMONY is someone's account of themselves: marketing copy, a press release, the posting's own description. INFERRED_RELATION is a conclusion drawn from an observable through a stated invariant, and requires vyapti. HYPOTHETICAL is a suspicion carried for the record and cannot support anything. Optional on artifacts dated before the cutover in src/utils/schemaValidator.js, where the class is derived from source_class and reported as derived."
+        },
+        "expected_status": {
+          "type": "integer",
+          "minimum": 100,
+          "maximum": 599,
+          "description": "The HTTP status this citation is expected to return, when that is not 200. Set it when the ABSENCE is the finding: a claim that a repository publishes no .github directory is proved by a 404 at that path, and src/utils/latencyGuard.js would otherwise report the citation as dead. Declaring it converts a negative observation from a broken link into a checkable one. Do not use it to excuse a citation that rotted."
+        },
+        "vyapti": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Required on INFERRED_RELATION. The invariant that licenses the inference, written out: the 'wherever smoke, there fire' of this particular claim. Naming it is what makes an inference checkable, because a stranger can then attack the invariant instead of the conclusion. An inference whose pervasion nobody wrote down is an assertion with a longer sentence in front of it."
         },
         "source_class": {
           "enum": ["backstage", "frontstage"],
@@ -92,7 +107,12 @@
   "x-rules": [
     {
       "id": "R-BACKSTAGE",
-      "description": "A payload claiming EVIDENCE_SUFFICIENT must carry at least one backstage row, or one frontstage row explicitly labeled specificity_leak. An evidence set that is entirely frontstage is the company's own account of itself and cannot establish a constraint.",
+      "description": "A payload claiming EVIDENCE_SUFFICIENT must carry at least one backstage row, or one frontstage row explicitly labeled specificity_leak. An evidence set that is entirely frontstage is the company's own account of itself and cannot establish a constraint. NARROWED 2026-08-17 by R-PRAMANA-INTEGRITY: the labeled-leak escape still satisfies this rule, but a set consisting only of leaks now fails the DIRECT_OBSERVABLE floor. A leak is still the company talking, and it is admissible as corroboration rather than as the sole basis of a sufficiency claim.",
+      "implemented_by": "src/utils/schemaValidator.js validateEvidence"
+    },
+    {
+      "id": "R-PRAMANA-INTEGRITY",
+      "description": "An EVIDENCE_SUFFICIENT payload needs at least one DIRECT_OBSERVABLE. TESTIMONY is admissible only on a row flagged specificity_leak, which is the same exception R-BACKSTAGE already carves for frontstage: a company's account of itself becomes evidence exactly where its control of the account failed. INFERRED_RELATION requires vyapti naming the invariant. HYPOTHETICAL supports nothing and is carried for the record only.",
       "implemented_by": "src/utils/schemaValidator.js validateEvidence"
     },
     {

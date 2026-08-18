@@ -24,7 +24,13 @@
 //   2. AN UNSEALED ARTIFACT IS A WARNING. Every artifact written before
 //      src/integrity.js existed has no seal. A modified one is a hard failure.
 
-import { validateEvidence, validateAudit, COVERAGE_THRESHOLD, FILING_QUESTIONS } from './utils/schemaValidator.js';
+import {
+  validateEvidence,
+  validateAudit,
+  pramanaFindings,
+  COVERAGE_THRESHOLD,
+  FILING_QUESTIONS,
+} from './utils/schemaValidator.js';
 import { verify as verifySeal } from './integrity.js';
 import { shipSupport } from './utils/likelihoodRatio.js';
 import { citationIsolation, checkCollision } from './blind.js';
@@ -130,6 +136,21 @@ export function inspectArtifact(doc, { artifact = null, checkSeal = true } = {})
         unanswered: un,
       });
     }
+  }
+
+  // ---- pramana: how is each row known, as distinct from how sure it is?
+  //
+  // The hard half throws inside validateEvidence above. What comes back here is
+  // the half the cutover defers: rows that predate the requirement and were
+  // classified by derivation rather than declaration, and testimony admitted
+  // under the older R-BACKSTAGE rule that permitted unlabeled frontstage rows.
+  // Reported so the tightening is visible on the artifacts it does not yet bind.
+  try {
+    for (const m of pramanaFindings(doc.evidence || [], 'evidence', { dated: doc.dated })) {
+      note('info', 'R-PRAMANA-INTEGRITY', m);
+    }
+  } catch {
+    // Already reported by the evidence.json validator above; not repeated here.
   }
 
   // ---- countercurrent: did the audit run backward, and did it cite anything new?

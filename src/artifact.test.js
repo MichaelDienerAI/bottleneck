@@ -145,12 +145,14 @@ t('an evidence set that is entirely frontstage fails and names Q13', () => {
   assert.ok(f, 'R-BACKSTAGE should carry the filing-standard question behind it');
 });
 
-t('a labeled specificity leak is admissible', () => {
-  noErrs(
-    inspectArtifact(doc({ evidence: [backstageRow({ source_class: 'frontstage', specificity_leak: true })] }), {
-      checkSeal: false,
-    })
-  );
+t('a labeled specificity leak is admissible alongside an observable', () => {
+  // R-PRAMANA-INTEGRITY narrowed R-BACKSTAGE: a lone labeled leak used to be a
+  // complete evidence set and no longer is. The leak is still the company
+  // talking, so it corroborates something read off a machine rather than
+  // standing in for one.
+  const leak = backstageRow({ source_class: 'frontstage', specificity_leak: true });
+  errs(inspectArtifact(doc({ evidence: [leak] }), { checkSeal: false }), 'no DIRECT_OBSERVABLE row');
+  noErrs(inspectArtifact(doc({ evidence: [backstageRow(), leak] }), { checkSeal: false }));
 });
 
 t('INSUFFICIENT_EVIDENCE without a named missing record fails', () => {

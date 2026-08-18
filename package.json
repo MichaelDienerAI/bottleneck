@@ -23,7 +23,8 @@
     "case": "node src/casefile.js",
     "walk": "node src/walkthrough.js",
     "blank": "node src/blank.js",
-    "blind-packet": "node src/blind.js --packet"
+    "blind-packet": "node src/blind.js --packet",
+    "verify-trace": "node src/verifyTrace.js"
   },
   "dependencies": {
     "js-yaml": "^4.1.0"

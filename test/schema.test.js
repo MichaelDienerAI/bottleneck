@@ -12,9 +12,14 @@ import {
   validateEvidence,
   validateAudit,
   loadSchema,
+  derivePramana,
+  pramanaFindings,
+  PRAMANA_CLASSES,
+  PRAMANA_REQUIRED_FROM,
   FILING_QUESTIONS,
   COVERAGE_THRESHOLD,
 } from '../src/utils/schemaValidator.js';
+import { calibrate } from '../src/utils/latencyGuard.js';
 
 let pass = 0;
 const t = (name, fn) => {
@@ -184,17 +189,21 @@ t('a high strength score does not buy a frontstage row past the rule', () => {
   );
 });
 
-t('a labeled specificity leak is the one frontstage row that counts', () => {
-  validateEvidence(
-    evidencePayload({
-      evidence: [
-        frontstageRow({
-          claim: 'The posting names a 1.2s p95 target, a number no marketing page would volunteer.',
-          specificity_leak: true,
-        }),
-      ],
-    })
-  );
+t('a labeled specificity leak is admissible, and is no longer sufficient alone', () => {
+  // R-BACKSTAGE used to accept an evidence set consisting of one labeled leak and
+  // nothing else, and this test asserted exactly that. R-PRAMANA-INTEGRITY
+  // narrows it: a leak is still the company talking, admissible as corroboration
+  // and not as the sole basis for a sufficiency claim. The narrowing is
+  // deliberate and the two rules are now read together — the leak passes
+  // R-BACKSTAGE, and the set still needs something read off a machine.
+  const leak = frontstageRow({
+    claim: 'The posting names a 1.2s p95 target, a number no marketing page would volunteer.',
+    specificity_leak: true,
+  });
+
+  rejects(() => validateEvidence(evidencePayload({ evidence: [leak] })), 'no DIRECT_OBSERVABLE row');
+
+  validateEvidence(evidencePayload({ evidence: [backstageRow(), leak] }));
 });
 
 t('an unlabeled leak is just a posting', () => {
@@ -249,7 +258,7 @@ t('a missing verify_seconds in auditor_evidence throws across the file boundary'
 t('verify_seconds must be a number, not a stringy one', () => {
   rejects(
     () => validateEvidence(evidencePayload({ evidence: [backstageRow({ verify_seconds: '8' })] })),
-    'expected a number'
+    'expected an integer'
   );
   rejects(
     () => validateEvidence(evidencePayload({ evidence: [backstageRow({ verify_seconds: -1 })] })),
@@ -476,6 +485,216 @@ t('validate names the schema it cannot find', () => {
 
 t('a non-object payload fails at the root rather than silently passing', () => {
   rejects(() => validateEvidence('EVIDENCE_SUFFICIENT'), 'payload: expected object');
+});
+
+
+// ---------------------------------------------------------------------------
+// R-PRAMANA-INTEGRITY — how a row is known, not how sure it is
+// ---------------------------------------------------------------------------
+//
+// strength 1-5 said how sure. Nothing said HOW, and collapsing the two is how a
+// confident reading of a press release outranks a hesitant reading of a commit
+// log. These four classes are the means of knowledge; the number stays the
+// confidence.
+
+t('a declared DIRECT_OBSERVABLE satisfies the floor', () => {
+  validateEvidence(
+    evidencePayload({ evidence: [backstageRow({ pramana_class: 'DIRECT_OBSERVABLE' })] })
+  );
+});
+
+t('the class defaults from source_class on artifacts predating the cutover', () => {
+  // 120 evidence rows existed when the field was introduced and none carried it.
+  // Requiring it retroactively would fail every artifact in the corpus at the
+  // renderer and the recorder; backfilling would write a provenance claim nobody
+  // made. So before the cutover it is derived and reported as derived.
+  assert.equal(derivePramana({ source_class: 'backstage' }), 'DIRECT_OBSERVABLE');
+  assert.equal(derivePramana({ source_class: 'frontstage' }), 'TESTIMONY');
+  validateEvidence(evidencePayload({ dated: '2026-08-01', evidence: [backstageRow()] }));
+});
+
+t('the declaration is required from the cutover date onward', () => {
+  rejects(
+    () => validateEvidence(evidencePayload({ dated: PRAMANA_REQUIRED_FROM, evidence: [backstageRow()] })),
+    'pramana_class is not declared'
+  );
+  validateEvidence(
+    evidencePayload({
+      dated: PRAMANA_REQUIRED_FROM,
+      evidence: [backstageRow({ pramana_class: 'DIRECT_OBSERVABLE' })],
+    })
+  );
+});
+
+t('an evidence set with no DIRECT_OBSERVABLE fails whatever its date', () => {
+  // A sufficiency claim resting entirely on accounts-of-self, stated in the
+  // vocabulary of how rather than of where.
+  rejects(
+    () =>
+      validateEvidence(
+        evidencePayload({
+          evidence: [frontstageRow({ specificity_leak: true, pramana_class: 'TESTIMONY' })],
+        })
+      ),
+    'no DIRECT_OBSERVABLE row'
+  );
+});
+
+t('TESTIMONY is admissible only as a labeled specificity leak', () => {
+  rejects(
+    () =>
+      validateEvidence(
+        evidencePayload({
+          dated: PRAMANA_REQUIRED_FROM,
+          evidence: [
+            backstageRow({ pramana_class: 'DIRECT_OBSERVABLE' }),
+            frontstageRow({ pramana_class: 'TESTIMONY' }),
+          ],
+        })
+      ),
+    'admissible only on a row flagged specificity_leak'
+  );
+
+  validateEvidence(
+    evidencePayload({
+      dated: PRAMANA_REQUIRED_FROM,
+      evidence: [
+        backstageRow({ pramana_class: 'DIRECT_OBSERVABLE' }),
+        frontstageRow({ pramana_class: 'TESTIMONY', specificity_leak: true }),
+      ],
+    })
+  );
+});
+
+t('the testimony rule is stricter than R-BACKSTAGE and is deferred, not dropped', () => {
+  // R-BACKSTAGE permits unlabeled frontstage rows beside a backstage one, and six
+  // of the eleven artifacts on disk carry such rows. Before the cutover the
+  // violation is returned for reporting rather than thrown.
+  const deferred = pramanaFindings(
+    [backstageRow(), frontstageRow()],
+    'evidence',
+    { dated: '2026-08-01' }
+  );
+  assert.ok(deferred.some((m) => /specificity_leak/.test(m)), 'the finding must survive as a report');
+});
+
+t('INFERRED_RELATION requires the invariant that licenses it', () => {
+  // An inference with no stated pervasion is an assertion with a longer sentence
+  // in front of it. Naming the vyapti lets a stranger attack the invariant
+  // instead of the conclusion.
+  rejects(
+    () =>
+      validateEvidence(
+        evidencePayload({
+          evidence: [
+            backstageRow({ pramana_class: 'DIRECT_OBSERVABLE' }),
+            backstageRow({ pramana_class: 'INFERRED_RELATION' }),
+          ],
+        })
+      ),
+    'requires vyapti'
+  );
+
+  validateEvidence(
+    evidencePayload({
+      evidence: [
+        backstageRow({ pramana_class: 'DIRECT_OBSERVABLE' }),
+        backstageRow({
+          pramana_class: 'INFERRED_RELATION',
+          vyapti: 'Wherever a repository has no commits for 90 days, no one is assigned to it.',
+        }),
+      ],
+    })
+  );
+});
+
+t('an unknown pramana class is refused by the enum', () => {
+  rejects(
+    () => validateEvidence(evidencePayload({ evidence: [backstageRow({ pramana_class: 'VIBES' })] })),
+    'is not one of'
+  );
+  assert.deepEqual(PRAMANA_CLASSES, ['DIRECT_OBSERVABLE', 'TESTIMONY', 'INFERRED_RELATION', 'HYPOTHETICAL']);
+});
+
+t('a HYPOTHETICAL row cannot stand in for an observable', () => {
+  rejects(
+    () =>
+      validateEvidence(
+        evidencePayload({ evidence: [backstageRow({ pramana_class: 'HYPOTHETICAL' })] })
+      ),
+    'no DIRECT_OBSERVABLE row'
+  );
+});
+
+t('verify_seconds must be a whole number of seconds', () => {
+  rejects(() => validateEvidence(evidencePayload({ evidence: [backstageRow({ verify_seconds: 7.5 })] })), 'expected an integer');
+});
+
+// ---------------------------------------------------------------------------
+// The latency guard — Ibn al-Haytham, applied only where a fetch settles anything
+// ---------------------------------------------------------------------------
+//
+// Measured 2026-08-17: a GET to the judgejudy repo returned in 0.77s while the
+// corpus rows citing it declare 8s and 20s. A naive "flag anything 3x off the
+// fetch" would flag every row on every run. A fetch is a floor, not an estimate:
+// it proves a number impossible and proves a citation dead, and nothing else.
+
+t('an unreachable trace fails whatever time it declares', () => {
+  const f = calibrate(backstageRow({ verify_seconds: 8 }), { verdict: 'unreachable', status: 404 });
+  assert.equal(f.ok, false);
+  assert.equal(f.state, 'unreachable');
+});
+
+t('a declared time below the response floor is impossible', () => {
+  const f = calibrate(backstageRow({ verify_seconds: 1 }), { verdict: 'reachable', seconds: 4.2 });
+  assert.equal(f.state, 'impossible');
+  assert.equal(f.ok, false);
+});
+
+t('a declared time inside 3x of the floor is flagged tight but not failed', () => {
+  const f = calibrate(backstageRow({ verify_seconds: 2 }), { verdict: 'reachable', seconds: 1.0 });
+  assert.equal(f.state, 'tight');
+  assert.equal(f.ok, true);
+});
+
+t('a generous declaration is not a finding', () => {
+  // Over-declaration proves nothing. 8s on a page that responds in 0.77s may be
+  // entirely honest about a dense page, and manufacturing a flag out of it would
+  // be the instrument reporting a concentration in a blank.
+  const f = calibrate(backstageRow({ verify_seconds: 8 }), { verdict: 'reachable', seconds: 0.77 });
+  assert.equal(f.state, 'plausible');
+  assert.equal(f.ok, true);
+});
+
+t('a row with no url is unchecked rather than failed', () => {
+  assert.equal(calibrate(backstageRow({ verify_seconds: 5 }), { verdict: 'no-url' }).state, 'unchecked');
+});
+
+t('a missing verify_seconds is caught by the guard as well as the schema', () => {
+  const row = backstageRow();
+  delete row.verify_seconds;
+  assert.equal(calibrate(row, { verdict: 'reachable', seconds: 1 }).state, 'undeclared');
+});
+
+
+t('a negative observation is confirmed by its declared status, not failed', () => {
+  // The first run of the trace verifier over the corpus flagged a live, correct
+  // row as a dead citation: the claim was that a repository publishes no .github
+  // directory, and the 404 at that path IS the evidence. Declaring the expected
+  // status makes the negative observation checkable instead of broken.
+  const row = backstageRow({ verify_seconds: 8, expected_status: 404 });
+  const f = calibrate(row, { verdict: 'gone', status: 404, seconds: 0.4 });
+  assert.equal(f.state, 'confirmed-absence');
+  assert.equal(f.ok, true);
+});
+
+t('a declared expected status that no longer matches still fails', () => {
+  // Not an escape hatch. If the absence stopped being the state of the world, the
+  // row rests on something that is no longer true.
+  const row = backstageRow({ verify_seconds: 8, expected_status: 404 });
+  const f = calibrate(row, { verdict: 'reachable', status: 200, seconds: 0.4 });
+  assert.equal(f.ok, false);
+  assert.match(f.message, /no longer the state of the world/);
 });
 
 console.log(`\n${pass} passing`);
