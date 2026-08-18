@@ -51,6 +51,58 @@
       "description": "Anything that could not be verified, named rather than smoothed over.",
       "items": { "type": "string", "minLength": 1 }
     },
+    "blind_phase": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["hypothesis", "sources"],
+      "description": "Phase 1 of a countercurrent audit, written before the auditor opened the diagnosis. The auditor forms its own constraint hypothesis from the raw observables and the posting alone. Absent on a co-current audit, which is allowed and is reported as such.",
+      "properties": {
+        "hypothesis": {
+          "type": "string",
+          "minLength": 1,
+          "description": "One sentence, formed from the observables alone. The Weakest Link formula, same as the diagnostician uses."
+        },
+        "sources": {
+          "type": "array",
+          "minItems": 1,
+          "description": "The observable URLs this hypothesis was formed from. Naming them is what makes the blind pass checkable.",
+          "items": { "type": "string", "minLength": 1 }
+        },
+        "packet_digest": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$",
+          "description": "sha256 of the blind packet, taken by src/blind.js before phase 1 ran. Ties the hypothesis to the exact material it was formed from."
+        },
+        "dated": { "type": "string", "pattern": "^\\d{4}-\\d{2}-\\d{2}$" }
+      }
+    },
+    "collision": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["agreement"],
+      "description": "Phase 2. The two independent hypotheses put against each other. Agreement reached from opposite directions is evidence; agreement reached by reviewing homework is not.",
+      "properties": {
+        "agreement": {
+          "enum": ["corroborated", "diverged"],
+          "description": "corroborated: both passes named the same binding part from opposite directions. diverged: they did not, and the divergence has to be argued."
+        },
+        "note": { "type": "string", "minLength": 1 },
+        "syllogism": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["major", "minor", "middle_term", "conclusion"],
+          "description": "Required when the two passes diverge. Does the diagnostician's conclusion have an unbroken causal middle term connecting the observable to the bottleneck? src/blind.js checks the FORM: the middle term must appear in both premises and must not survive into the conclusion. Whether it names the reason the thing is so rather than a sign that it is so — causa essendi — is the auditor's judgment and no code settles it.",
+          "properties": {
+            "major": { "type": "string", "minLength": 1 },
+            "minor": { "type": "string", "minLength": 1 },
+            "middle_term": { "type": "string", "minLength": 1 },
+            "conclusion": { "type": "string", "minLength": 1 },
+            "middle_term_holds": { "type": "boolean" },
+            "break": { "type": "string", "minLength": 1 }
+          }
+        }
+      }
+    },
     "diagnostician_digest": {
       "type": "string",
       "pattern": "^[a-f0-9]{64}$",
@@ -113,6 +165,16 @@
       "id": "R-AUDITOR-BACKSTAGE",
       "description": "A PASS verdict requires at least one backstage row in auditor_evidence, or a labeled specificity leak. This is auditor.md's posting_only_rows: 0, enforced in code.",
       "implemented_by": "src/utils/schemaValidator.js validateAudit"
+    },
+    {
+      "id": "R-ISOLATION",
+      "description": "auditor_evidence must carry at least one backstage row whose inspectable_at the diagnostician did not cite. A row cited by both is struck unless the auditor marks independent_source. auditor.md has required this since it was written and said outright that nothing in code checked it; src/blind.js checks it.",
+      "implemented_by": "src/blind.js citationIsolation, called from src/validateArtifact.js"
+    },
+    {
+      "id": "R-COLLISION",
+      "description": "When blind_phase is present, collision must be too, and a diverged collision requires a syllogism whose middle term appears in both premises and not in the conclusion. A co-current audit carries neither block and is reported rather than refused.",
+      "implemented_by": "src/blind.js checkCollision, called from src/validateArtifact.js"
     },
     {
       "id": "R-SEAL",

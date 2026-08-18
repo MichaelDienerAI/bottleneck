@@ -70,7 +70,15 @@ const auditBlock = (over = {}) => ({
     q19_staged_labeled: true,
     q20_agent_assisted_labeled: true,
   },
-  auditor_evidence: [backstageRow({ claim: 'Independent backstage row the diagnostician did not cite.' })],
+  // A DIFFERENT url from the diagnosis row. It used to reuse the same one and
+  // call itself independent, which src/blind.js citationIsolation now catches:
+  // an audit assembled from the diagnostician's own citations is a proofread.
+  auditor_evidence: [
+    backstageRow({
+      claim: 'Independent backstage row the diagnostician did not cite.',
+      inspectable_at: 'https://status.example.com/history',
+    }),
+  ],
   verdict: 'PASS',
   ...over,
 });

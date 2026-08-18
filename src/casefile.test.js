@@ -673,7 +673,18 @@ t('summary reports each file once', () => {
 // missing fixture.
 function installCli(root) {
   fs.mkdirSync(path.join(root, 'src/utils'), { recursive: true });
-  for (const f of ['casefile.js', 'validateArtifact.js', 'integrity.js', 'utils/schemaValidator.js', 'utils/likelihoodRatio.js']) {
+  // The gate's whole import graph. It has grown three times now — the seal, the
+  // likelihood ratio, the countercurrent check — and each time the fixture died
+  // on ERR_MODULE_NOT_FOUND, which reads as a CLI failure rather than a missing
+  // dependency. Anything validateArtifact.js imports belongs on this list.
+  for (const f of [
+    'casefile.js',
+    'validateArtifact.js',
+    'integrity.js',
+    'blind.js',
+    'utils/schemaValidator.js',
+    'utils/likelihoodRatio.js',
+  ]) {
     fs.copyFileSync(path.join(REPO, 'src', f), path.join(root, 'src', f));
   }
   fs.mkdirSync(path.join(root, '.claude'), { recursive: true });

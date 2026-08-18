@@ -27,6 +27,7 @@
 import { validateEvidence, validateAudit, COVERAGE_THRESHOLD, FILING_QUESTIONS } from './utils/schemaValidator.js';
 import { verify as verifySeal } from './integrity.js';
 import { shipSupport } from './utils/likelihoodRatio.js';
+import { citationIsolation, checkCollision } from './blind.js';
 
 // The five keys .claude/schemas/evidence.json owns. The rest of a diagnosis is
 // the wrapper and is deliberately not schema-checked, per TECHNICAL_DESIGN §.
@@ -128,6 +129,31 @@ export function inspectArtifact(doc, { artifact = null, checkSeal = true } = {})
       note('info', 'coverage', `${FILING_QUESTIONS - un.length}/${FILING_QUESTIONS} answered. Unanswered: ${un.join(', ')}.`, {
         unanswered: un,
       });
+    }
+  }
+
+  // ---- countercurrent: did the audit run backward, and did it cite anything new?
+  //
+  // Isolation is an error on a PASS and a note otherwise: an audit that rejected
+  // the artifact has already stopped it, and a second refusal for one artifact
+  // tells the writer less rather than more. The collision block is checked
+  // whenever a blind phase claims to have happened, because a phase 1 with no
+  // phase 2 is an unread second opinion and saying so costs nothing.
+  if (audited) {
+    const iso = citationIsolation(doc.evidence || [], doc.audit.auditor_evidence || []);
+    if (!iso.ok) {
+      note(doc.audit.verdict === 'PASS' ? 'error' : 'info', 'R-ISOLATION', iso.reason);
+    }
+    for (const r of iso.struck) {
+      note('warning', 'R-ISOLATION', `auditor_evidence re-cites a diagnostician URL with no independent route to it: ${r.url}`);
+    }
+
+    const col = checkCollision(doc.audit);
+    if (col.skipped) {
+      note('info', 'R-COLLISION', 'this audit ran co-current: it read the diagnosis before forming a view. Agreement here is weak evidence.');
+    } else {
+      for (const p of col.problems) note('error', 'R-COLLISION', p);
+      if (col.ok) note('info', 'R-COLLISION', `countercurrent audit, ${col.agreement} against the blind hypothesis.`);
     }
   }
 
