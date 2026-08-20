@@ -34,6 +34,7 @@ import {
 import { verify as verifySeal } from './integrity.js';
 import { shipSupport } from './utils/likelihoodRatio.js';
 import { citationIsolation, checkCollision } from './blind.js';
+import { assessProof } from './assessor.js';
 
 // The five keys .claude/schemas/evidence.json owns. The rest of a diagnosis is
 // the wrapper and is deliberately not schema-checked, per TECHNICAL_DESIGN §.
@@ -81,7 +82,7 @@ const questionFor = (msg) => {
 
 // Returns findings rather than throwing, for callers that want to report every
 // problem at once. validateArtifact() is the throwing wrapper.
-export function inspectArtifact(doc, { artifact = null, checkSeal = true } = {}) {
+export function inspectArtifact(doc, { artifact = null, checkSeal = true, ledger = null } = {}) {
   const findings = [];
   const note = (severity, rule, message, extra = {}) => findings.push({ severity, rule, message, ...extra });
 
@@ -193,6 +194,27 @@ export function inspectArtifact(doc, { artifact = null, checkSeal = true } = {})
   }
   for (const r of support.barred) {
     note('info', 'apoha', `LR ${r.likelihood_ratio}: ${r.basis} — "${r.claim}"`);
+  }
+
+  // ---- the proof delta, reported
+  //
+  // proof_match is a diagnosis field, so assessing it belongs here. The hard
+  // refusal does NOT: a commercial dossier is a packet, packets are gated in
+  // src/diorismos.js, and one validator checking two unrelated shapes is how a
+  // gate stops being read. This reports; diorismos refuses.
+  if (ledger) {
+    try {
+      const d = assessProof({ diagnosis: doc, ledger }).proof_delta;
+      note(
+        'info',
+        'R-PROOF-DELTA',
+        `${d.direct_hits.length} direct proof hit(s), score ${d.match_score}/${d.max_score}` +
+          (d.failed_requirements.length ? `, failing: ${d.failed_requirements.join(', ')}` : '')
+      );
+      for (const g of d.unverified_gaps) note('info', 'R-PROOF-DELTA', g);
+    } catch (e) {
+      note('warning', 'R-PROOF-DELTA', `the proof delta could not be computed: ${e.message}`);
+    }
   }
 
   // ---- pre-audit seal

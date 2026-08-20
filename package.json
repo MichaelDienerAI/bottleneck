@@ -19,14 +19,16 @@
     "board": "node src/report.js",
     "brief": "node src/renderBrief.js",
     "bluf": "node src/bluf.js",
-    "test": "node src/gates.test.js && node src/casefile.test.js && node src/queue.test.js && node src/bluf.test.js && node src/ledger.test.js && node src/artifact.test.js && node test/blank.test.js && node test/auditor-blind.test.js && node test/algebra.test.js && node test/eightyThousandHours.test.js && node test/ingestManual.test.js && node test/server-manual-route.test.js && node test/dashboard.test.js && node test/schema.test.js && node test/automation.test.js && node test/liveness.test.js",
+    "test": "node src/gates.test.js && node src/casefile.test.js && node src/queue.test.js && node src/bluf.test.js && node src/ledger.test.js && node src/artifact.test.js && node test/blank.test.js && node test/auditor-blind.test.js && node test/algebra.test.js && node test/eightyThousandHours.test.js && node test/ingestManual.test.js && node test/server-manual-route.test.js && node test/dashboard.test.js && node test/assessor.test.js && node test/onboarding.test.js && node test/schema.test.js && node test/automation.test.js && node test/liveness.test.js",
     "case": "node src/casefile.js",
     "walk": "node src/walkthrough.js",
     "blank": "node src/blank.js",
     "blind-packet": "node src/blind.js --packet",
     "verify-trace": "node src/verifyTrace.js",
     "diorismos": "node src/diorismos.js",
-    "ingest:jd": "node src/ingestManual.js"
+    "ingest:jd": "node src/ingestManual.js",
+    "onboard": "node src/onboarding.js",
+    "assess": "node src/assessor.js"
   },
   "dependencies": {
     "js-yaml": "^4.1.0"

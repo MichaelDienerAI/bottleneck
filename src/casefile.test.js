@@ -684,6 +684,8 @@ function installCli(root) {
     'blind.js',
     'utils/schemaValidator.js',
     'utils/likelihoodRatio.js',
+    'assessor.js',
+    'utils/promptAlgebra.js',
   ]) {
     fs.copyFileSync(path.join(REPO, 'src', f), path.join(root, 'src', f));
   }

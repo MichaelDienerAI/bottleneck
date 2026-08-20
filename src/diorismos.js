@@ -30,6 +30,7 @@ import { pathToFileURL } from 'node:url';
 import yaml from 'js-yaml';
 import { fkGrade, words } from './bluf.js';
 import { checkOutreachForm } from './utils/promptAlgebra.js';
+import { assessProof, commercialReady } from './assessor.js';
 
 const ROOT = path.resolve(import.meta.dirname, '..');
 
@@ -125,6 +126,22 @@ export function feasible(d) {
 }
 
 // ---------------------------------------------------------------- the check
+
+// The commercial gate. A dossier addressed to an executive rests on a proof that
+// provably acts on the failure it names, or it is an opinion with a letterhead.
+// Deliberately not a threshold on match_score: a proof nobody can open does not
+// become defensible by scoring 80.
+export function checkCommercial({ diagnosis, ledger }) {
+  const delta = assessProof({ diagnosis, ledger });
+  const ready = commercialReady(delta);
+  return {
+    ok: ready.ok,
+    delta: delta.proof_delta,
+    violations: ready.ok
+      ? []
+      : ready.reasons.map((message) => ({ artifact: 'dossier', rule: 'R-DIORISMOS-VIOLATION', message })),
+  };
+}
 
 export function checkDrafts(d, { brief, outreach }) {
   const violations = [];

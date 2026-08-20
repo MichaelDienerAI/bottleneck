@@ -59,7 +59,8 @@ Run these in a terminal:
 | `npm run diorismos -- --register <packet dir>` | Writes the packet acceptance criteria BEFORE drafting. Reports NOT CONSTRUCTIBLE when the parts are missing |
 | `npm run diorismos -- --check <packet dir> --enforce` | Measures the drafts against what was registered. Quarantines violations into rejected/ |
 | `npm run ingest:jd` | Pastes a job description straight into the buffer. `pbpaste | npm run ingest:jd -- --company X --role Y`. Runs Gate 0 and reports it without vetoing |
-| `npm test` | Sixteen suites, 467 assertions, no network, no model. Run before you trust anything |
+| `npm run onboard` | Parses achievements into proof units and refuses the unfalsifiable ones. Writes to the SPECULATIVE half of the ledger only. `--dry` to inspect |
+| `npm test` | Eighteen suites, 509 assertions, no network, no model. Run before you trust anything |
 | `./bin/run.sh` | Runs the whole scheduled job by hand, exactly as launchd runs it |
 
 ## The pipeline, end to end

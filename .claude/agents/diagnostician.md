@@ -45,7 +45,13 @@ Fingerprint examiners found most of their matches when a detective handed them a
 7. Score each row's `strength` as an integer from 1 to 5: **5** a sovereign backstage trace a stranger can reproduce, **3** circumstantial — consistent with your claim but also with several others, **1** asserted with a source that only repeats the assertion. Use 4 and 2 for the in-between cases. Never write the words sovereign, circumstantial, or absent in this field; the field is a number.
 8. Stop when you can name one part with one number. Nothing below tier B earns a slot.
 9. If no element survives, write `acquittal: INSUFFICIENT_EVIDENCE`, name the record that would settle it in `missing_record`, and release the slot. A rejected candidate narrows the field and counts as progress.
-10. Map to the proof ledger. Read `profile/proof-ledger.yaml`. Find the sovereign proof that acts on the named constraint. If only speculative proofs match, the answer is no.
+10. **When a proof does act on the constraint, write the middle term.** `proof_match.middle_term` takes `major`, `minor`, `middle_term`, `conclusion`. The middle term is the one appearing in both premises and absent from the conclusion — that is what makes it the middle, and its elimination is what the inference does. `src/assessor.js` checks that form, and `checkCommercial()` refuses a dossier without it.
+
+    The failure it catches is a proof and a problem asserted side by side with nothing between them. "They have no eval harness" and "Michael built an eval harness" are two facts; the middle term is what makes them an argument. Leave it out and the proof is a coincidence sharing a document with the problem.
+
+    Write it only when `acts_on_constraint` is true. An invented middle term for a proof that does not act on the named part is worse than none, because it dresses a coincidence as a chain.
+
+11. Map to the proof ledger. Read `profile/proof-ledger.yaml`. Find the sovereign proof that acts on the named constraint. If only speculative proofs match, the answer is no.
 
 ## Output schema
 
